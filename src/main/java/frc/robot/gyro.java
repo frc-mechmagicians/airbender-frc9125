@@ -14,6 +14,7 @@ import edu.wpi.first.wpilibj.ADXRS450_Gyro;
 import edu.wpi.first.wpilibj.Joystick;
 import edu.wpi.first.wpilibj.TimedRobot;
 import edu.wpi.first.wpilibj.Timer;
+import edu.wpi.first.wpilibj.drive.DifferentialDrive;
 import edu.wpi.first.wpilibj.smartdashboard.SendableChooser;
 import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
 
@@ -140,6 +141,7 @@ public class RobotPID extends TimedRobot {
   /**
    * This method is run once when the robot is first started up.
    */
+  DifferentialDrive drive = new DifferentialDrive(driveLeftSpark, driveRightSpark);
   @Override
   public void robotInit() {
     m_chooser.setDefaultOption("do nothing", kNothingAuto);
@@ -289,8 +291,9 @@ public class RobotPID extends TimedRobot {
   double autonomousStartTime;
   double autonomousIntakePower;
 
-    
+  double heading= gyro.getAngle();;
   @Override
+
   public void autonomousInit() {
     driveLeftSpark.setIdleMode(IdleMode.kBrake);
     //driveLeftSparktwo.setIdleMode(IdleMode.kBrake);
@@ -309,7 +312,6 @@ public class RobotPID extends TimedRobot {
     autonomousStartTime = Timer.getFPGATimestamp();
     left_encoder.setPosition(0);
     right_encoder.setPosition(0);
-
   }
 
   double conversion = Math.PI/16;
@@ -317,8 +319,7 @@ public class RobotPID extends TimedRobot {
 
   @Override
   public void autonomousPeriodic() {
-    double error = -gyro.getRate();
-    double errorTurn = 90 - gyro.getAngle();
+    double error= heading- gyro.getAngle();
     double p = SmartDashboard.getNumber("P Gain", 0);
     double i = SmartDashboard.getNumber("I Gain", 0);
     double d = SmartDashboard.getNumber("D Gain", 0);
@@ -358,14 +359,15 @@ public class RobotPID extends TimedRobot {
     if((allE != allowedErr)) { left_pid.setSmartMotionAllowedClosedLoopError(allE,0); allowedErr = allE; }
     double setPoint, processVariable, setPoint1, processVariable1;
     boolean mode = SmartDashboard.getBoolean("Mode", false);
+    double kp = 1;
     if(mode) {
       setPoint = SmartDashboard.getNumber("Set Velocity", 0);
-      left_pid.setReference(setPoint+kP*error, CANSparkMax.ControlType.kVelocity);
+      left_pid.setReference(setPoint, CANSparkMax.ControlType.kVelocity);
       processVariable = left_encoder.getVelocity();
       setPoint1 = SmartDashboard.getNumber("Set Velocity", 0);
-      right_pid.setReference(setPoint1-kP*error, CANSparkMax.ControlType.kVelocity);
+      right_pid.setReference(setPoint1, CANSparkMax.ControlType.kVelocity);
       processVariable1 = right_encoder.getVelocity();
-      
+      drive.tankDrive( .1+ kp * error, .1 - kp * error);
     } else {
       setPoint = SmartDashboard.getNumber("Set Position", 0);
       setPoint1 = SmartDashboard.getNumber("Set Position", 0);
@@ -387,6 +389,7 @@ public class RobotPID extends TimedRobot {
     SmartDashboard.putNumber("SetPointR", setPoint1);
     SmartDashboard.putNumber("Process VariableR", processVariable1);
     SmartDashboard.putNumber("OutputR", driveRightSpark.getAppliedOutput());
+    SmartDashboard.putNumber("Angle", gyro.getAngle());
   
     double speedx = 0.6;
     
