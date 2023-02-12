@@ -1,3 +1,6 @@
+// Copyright (c) FIRST and other WPILib contributors.
+// Open Source Software; you can modify and/or share it under the terms of
+// the WPILib BSD license file in the root directory of this project.
 
 package frc.robot;
 import java.lang.Math;
@@ -11,13 +14,11 @@ import edu.wpi.first.wpilibj.ADXRS450_Gyro;
 import edu.wpi.first.wpilibj.Joystick;
 import edu.wpi.first.wpilibj.TimedRobot;
 import edu.wpi.first.wpilibj.Timer;
-import edu.wpi.first.wpilibj.drive.DifferentialDrive;
-import edu.wpi.first.wpilibj.motorcontrol.MotorControllerGroup;
 import edu.wpi.first.wpilibj.smartdashboard.SendableChooser;
 import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
 
 
-public class gyro extends TimedRobot {
+public class RobotPID extends TimedRobot {
 
   /*
    * Autonomous selection options.
@@ -28,7 +29,8 @@ public class gyro extends TimedRobot {
   private String m_autoSelected;
   private final SendableChooser<String> m_chooser = new SendableChooser<>();
 
-  public double kP, kI, kD, kIz, kFF, kMaxOutput, kMinOutput, maxRPM, maxVel, minVel, maxAcc, allowedErr;
+  public double kP, kI, kD, kIz, kFF, kMaxOutput, kMinOutput, maxRPM, maxVel, minVel, maxAcc, allowedErr,kPTurning;
+
   /*
    * Drive motor controller instances.
    * 
@@ -40,10 +42,7 @@ public class gyro extends TimedRobot {
   CANSparkMax driveRightSpark = new CANSparkMax(3, MotorType.kBrushless);
   RelativeEncoder left_encoder, right_encoder;
   SparkMaxPIDController left_pid, right_pid;
-
-  DifferentialDrive drive = new DifferentialDrive(driveLeftSpark, driveRightSpark);
-
-  ADXRS450_Gyro gyro = new ADXRS450_Gyro();
+  public static ADXRS450_Gyro gyro = new ADXRS450_Gyro();
 
 
 
@@ -179,6 +178,7 @@ public class gyro extends TimedRobot {
     maxRPM = 5700;
     maxVel = 2000; // rpm
     maxAcc = 1500;
+    kPTurning=.05;
 
     // set PID coefficients
     left_pid.setP(kP);
@@ -220,6 +220,7 @@ public class gyro extends TimedRobot {
     SmartDashboard.putNumber("Allowed Closed Loop Error", allowedErr);
     SmartDashboard.putNumber("Set Position", 0);
     SmartDashboard.putNumber("Set Velocity", 0);
+    SmartDashboard.putNumber("Set Angle",0);
     
 
 
@@ -289,230 +290,144 @@ public class gyro extends TimedRobot {
   double autonomousIntakePower;
 
     
-  // @Override
-  // public void autonomousInit() {
-  //   driveLeftSpark.setIdleMode(IdleMode.kBrake);
-  //   //driveLeftSparktwo.setIdleMode(IdleMode.kBrake);
-  //   driveRightSpark.setIdleMode(IdleMode.kBrake);
-  //   //driveRightSparktwo.setIdleMode(IdleMode.kBrake);
+  @Override
+  public void autonomousInit() {
+    driveLeftSpark.setIdleMode(IdleMode.kBrake);
+    //driveLeftSparktwo.setIdleMode(IdleMode.kBrake);
+    driveRightSpark.setIdleMode(IdleMode.kBrake);
+    //driveRightSparktwo.setIdleMode(IdleMode.kBrake);
 
-  //   m_autoSelected = m_chooser.getSelected();
-  //   System.out.println("Auto selected: " + m_autoSelected);
+    m_autoSelected = m_chooser.getSelected();
+    System.out.println("Auto selected: " + m_autoSelected);
 
-  //   if (m_autoSelected == kConeAuto) {
-  //     autonomousIntakePower = INTAKE_OUTPUT_POWER;
-  //   } else if (m_autoSelected == kCubeAuto) {
-  //     autonomousIntakePower = -INTAKE_OUTPUT_POWER;
-  //   }
+    if (m_autoSelected == kConeAuto) {
+      autonomousIntakePower = INTAKE_OUTPUT_POWER;
+    } else if (m_autoSelected == kCubeAuto) {
+      autonomousIntakePower = -INTAKE_OUTPUT_POWER;
+    }
 
-  //   autonomousStartTime = Timer.getFPGATimestamp();
-  //   left_encoder.setPosition(0);
-  //   right_encoder.setPosition(0);
+    autonomousStartTime = Timer.getFPGATimestamp();
+    left_encoder.setPosition(0);
+    right_encoder.setPosition(0);
 
-  // }
+  }
 
   double conversion = Math.PI/16;
   double setpoint=0;
 
-  // @Override
-  // public void autonomousPeriodic() {
-  //   double p = SmartDashboard.getNumber("P Gain", 0);
-  //   double i = SmartDashboard.getNumber("I Gain", 0);
-  //   double d = SmartDashboard.getNumber("D Gain", 0);
-  //   double iz = SmartDashboard.getNumber("I Zone", 0);
-  //   double ff = SmartDashboard.getNumber("Feed Forward", 0);
-  //   double max = SmartDashboard.getNumber("Max Output", 0);
-  //   double min = SmartDashboard.getNumber("Min Output", 0);
-  //   double maxV = SmartDashboard.getNumber("Max Velocity", 0);
-  //   double minV = SmartDashboard.getNumber("Min Velocity", 0);
-  //   double maxA = SmartDashboard.getNumber("Max Acceleration", 0);
-  //   double allE = SmartDashboard.getNumber("Allowed Closed Loop Error", 0);
-  //   if((p != kP)) { right_pid.setP(p); kP = p; }
-  //   if((i != kI)) { right_pid.setI(i); kI = i; }
-  //   if((d != kD)) { right_pid.setD(d); kD = d; }
-  //   if((iz != kIz)) { right_pid.setIZone(iz); kIz = iz; }
-  //   if((ff != kFF)) { right_pid.setFF(ff); kFF = ff; }
-  //   if((max != kMaxOutput) || (min != kMinOutput)) { 
-  //     right_pid.setOutputRange(min, max); 
-  //     kMinOutput = min; kMaxOutput = max; 
-  //   }
-  //   if((p != kP)) { left_pid.setP(p); kP = p; }
-  //   if((i != kI)) { left_pid.setI(i); kI = i; }
-  //   if((d != kD)) { left_pid.setD(d); kD = d; }
-  //   if((iz != kIz)) { left_pid.setIZone(iz); kIz = iz; }
-  //   if((ff != kFF)) { left_pid.setFF(ff); kFF = ff; }
-  //   if((max != kMaxOutput) || (min != kMinOutput)) { 
-  //     left_pid.setOutputRange(min, max); 
-  //     kMinOutput = min; kMaxOutput = max; 
-  //   }
-  //   if((maxV != maxVel)) { right_pid.setSmartMotionMaxVelocity(maxV,0); maxVel = maxV; }
-  //   if((minV != minVel)) { right_pid.setSmartMotionMinOutputVelocity(minV,0); minVel = minV; }
-  //   if((maxA != maxAcc)) { right_pid.setSmartMotionMaxAccel(maxA,0); maxAcc = maxA; }
-  //   if((allE != allowedErr)) { right_pid.setSmartMotionAllowedClosedLoopError(allE,0); allowedErr = allE; }
-  //   if((maxV != maxVel)) { left_pid.setSmartMotionMaxVelocity(maxV,0); maxVel = maxV; }
-  //   if((minV != minVel)) { left_pid.setSmartMotionMinOutputVelocity(minV,0); minVel = minV; }
-  //   if((maxA != maxAcc)) { left_pid.setSmartMotionMaxAccel(maxA,0); maxAcc = maxA; }
-  //   if((allE != allowedErr)) { left_pid.setSmartMotionAllowedClosedLoopError(allE,0); allowedErr = allE; }
-  //   double setPoint, processVariable, setPoint1, processVariable1;
-  //   boolean mode = SmartDashboard.getBoolean("Mode", false);
-  //   if(mode) {
-  //     setPoint = SmartDashboard.getNumber("Set Velocity", 0);
-  //     left_pid.setReference(setPoint, CANSparkMax.ControlType.kVelocity);
-  //     processVariable = left_encoder.getVelocity();
-  //     setPoint1 = SmartDashboard.getNumber("Set Velocity", 0);
-  //     right_pid.setReference(setPoint1, CANSparkMax.ControlType.kVelocity);
-  //     processVariable1 = right_encoder.getVelocity();
-      
-  //   } else {
-  //     setPoint = SmartDashboard.getNumber("Set Position", 0);
-  //     setPoint1 = SmartDashboard.getNumber("Set Position", 0);
-
-  //     /**
-  //      * As with other PID modes, Smart Motion is set by calling the
-  //      * setReference method on an existing pid object and setting
-  //      * the control type to kSmartMotion
-  //      */
-  //     left_pid.setReference(setPoint, CANSparkMax.ControlType.kSmartMotion);
-  //     processVariable = left_encoder.getPosition();
-  //     right_pid.setReference(setPoint1, CANSparkMax.ControlType.kSmartMotion);
-  //     processVariable1 = right_encoder.getPosition();
-  //   }
-    
-  //   SmartDashboard.putNumber("SetPointL", setPoint);
-  //   SmartDashboard.putNumber("Process VariableL", processVariable);
-  //   SmartDashboard.putNumber("OutputL", driveLeftSpark.getAppliedOutput());
-  //   SmartDashboard.putNumber("SetPointR", setPoint1);
-  //   SmartDashboard.putNumber("Process VariableR", processVariable1);
-  //   SmartDashboard.putNumber("OutputR", driveRightSpark.getAppliedOutput());
-  
-  //   double speedx = 0.6;
-    
-
-  //   //SmartDashboard.putNumber("Speed", left_encoder.getVelocity()/8);
-  //   SmartDashboard.putNumber("Right Position:", right_encoder.getPosition());
-  //   SmartDashboard.putNumber("Left Position:", left_encoder.getPosition());
-
-  //   //(right_encoder.getPosition()+left_encoder.getPosition()<25)
-
-  //   // if (m_autoSelected == kNothingAuto) {
-  //   //   setArmMotor(0.0);
-  //   //   setIntakeMotor(0.0, INTAKE_CURRENT_LIMIT_A);
-  //   //   setDriveMotors(0.0, 0.0);
-  //   //   return;
-  //   // }
-
-  //   // double timeElapsed = Timer.getFPGATimestamp() - autonomousStartTime;
-
-  //   // if (timeElapsed < ARM_EXTEND_TIME_S) {
-  //   //   setArmMotor(ARM_OUTPUT_POWER);
-  //   //   setIntakeMotor(0.0, INTAKE_CURRENT_LIMIT_A);
-  //   //   setDriveMotors(0.0, 0.0);
-  //   // } else if (timeElapsed < ARM_EXTEND_TIME_S + AUTO_THROW_TIME_S) {
-  //   //   setArmMotor(0.0);
-  //   //   setIntakeMotor(autonomousIntakePower, INTAKE_CURRENT_LIMIT_A);
-  //   //   setDriveMotors(0.0, 0.0);
-  //   // } else if (timeElapsed < ARM_EXTEND_TIME_S + AUTO_THROW_TIME_S + ARM_EXTEND_TIME_S) {
-  //   //   setArmMotor(-ARM_OUTPUT_POWER);
-  //   //   setIntakeMotor(0.0, INTAKE_CURRENT_LIMIT_A);
-  //   //   setDriveMotors(0.0, 0.0);
-  //   // } else if (timeElapsed < ARM_EXTEND_TIME_S + AUTO_THROW_TIME_S + ARM_EXTEND_TIME_S + AUTO_DRIVE_TIME) {
-  //   //   setArmMotor(0.0);
-  //   //   setIntakeMotor(0.0, INTAKE_CURRENT_LIMIT_A);
-  //   //   setDriveMotors(AUTO_DRIVE_SPEED, 0.0);
-  //   // } else {
-  //   //   setArmMotor(0.0);
-  //   //   setIntakeMotor(0.0, INTAKE_CURRENT_LIMIT_A);
-  //   //   setDriveMotors(0.0, 0.0);
-  //   // }
-  // }
-
   @Override
-    public void autonomousInit() {
-        driveLeftSpark.setIdleMode(IdleMode.kBrake);
-        // driveLeftSparktwo.setIdleMode(IdleMode.kBrake);
-        driveRightSpark.setIdleMode(IdleMode.kBrake);
-        // driveRightSparktwo.setIdleMode(IdleMode.kBrake);
-
-        m_autoSelected = m_chooser.getSelected();
-        System.out.println("Auto selected: " + m_autoSelected);
-
-        if (m_autoSelected == kConeAuto) {
-            autonomousIntakePower = INTAKE_OUTPUT_POWER;
-        } else if (m_autoSelected == kCubeAuto) {
-            autonomousIntakePower = -INTAKE_OUTPUT_POWER;
-        }
-
-        autonomousStartTime = Timer.getFPGATimestamp();
-        left_encoder.setPosition(0);
-        right_encoder.setPosition(0);
+  public void autonomousPeriodic() {
+    double error = -gyro.getRate();
+    double errorTurn = 90 - gyro.getAngle();
+    double p = SmartDashboard.getNumber("P Gain", 0);
+    double i = SmartDashboard.getNumber("I Gain", 0);
+    double d = SmartDashboard.getNumber("D Gain", 0);
+    double iz = SmartDashboard.getNumber("I Zone", 0);
+    double ff = SmartDashboard.getNumber("Feed Forward", 0);
+    double max = SmartDashboard.getNumber("Max Output", 0);
+    double min = SmartDashboard.getNumber("Min Output", 0);
+    double maxV = SmartDashboard.getNumber("Max Velocity", 0);
+    double minV = SmartDashboard.getNumber("Min Velocity", 0);
+    double maxA = SmartDashboard.getNumber("Max Acceleration", 0);
+    double allE = SmartDashboard.getNumber("Allowed Closed Loop Error", 0);
+    if((p != kP)) { right_pid.setP(p); kP = p; }
+    if((i != kI)) { right_pid.setI(i); kI = i; }
+    if((d != kD)) { right_pid.setD(d); kD = d; }
+    if((iz != kIz)) { right_pid.setIZone(iz); kIz = iz; }
+    if((ff != kFF)) { right_pid.setFF(ff); kFF = ff; }
+    if((max != kMaxOutput) || (min != kMinOutput)) { 
+      right_pid.setOutputRange(min, max); 
+      kMinOutput = min; kMaxOutput = max; 
     }
-
-    @Override
-    public void autonomousPeriodic() {
-
-        double speedx = 0.3;
-        double dropspeed = 0.05;
-        double error = -gyro.getRate();
-        double kP = 5e-4;
-        double kPTurning = (5e-4)/200;
-        
-        // SmartDashboard.putNumber("Speed", m_encoder.getVelocity()/8);
-        SmartDashboard.putNumber("Right Position:", right_encoder.getPosition());
-        SmartDashboard.putNumber("Left Position:", left_encoder.getPosition());
-
-        if (right_encoder.getPosition() + left_encoder.getPosition() < 25) {
-            drive.tankDrive(speedx + kP * error, speedx - kP * error);
-        } else if (right_encoder.getPosition() + left_encoder.getPosition() < 30) {
-            drive.tankDrive(dropspeed + kP * error, dropspeed - kP * error);
-
-
-            // driveLeftSparktwo.set(speedx);
-            // driveRightSparktwo.set(speedx);
-        } else {
-            driveLeftSpark.set(0.0);
-            driveRightSpark.set(0.0);
-            // driveLeftSparktwo.set(0.0);
-            // driveRightSparktwo.set(0.0);
-
-        }
-        
-        double errorTurn = 90 - gyro.getAngle();
-
-        // drive.tankDrive(kPTurning * errorTurn, -kPTurning * errorTurn);
-
-        // if (m_autoSelected == kNothingAuto) {
-        // setArmMotor(0.0);
-        // setIntakeMotor(0.0, INTAKE_CURRENT_LIMIT_A);
-        // setDriveMotors(0.0, 0.0);
-        // return;
-        // }
-
-        // double timeElapsed = Timer.getFPGATimestamp() - autonomousStartTime;
-
-        // if (timeElapsed < ARM_EXTEND_TIME_S) {
-        // setArmMotor(ARM_OUTPUT_POWER);
-        // setIntakeMotor(0.0, INTAKE_CURRENT_LIMIT_A);
-        // setDriveMotors(0.0, 0.0);
-        // } else if (timeElapsed < ARM_EXTEND_TIME_S + AUTO_THROW_TIME_S) {
-        // setArmMotor(0.0);
-        // setIntakeMotor(autonomousIntakePower, INTAKE_CURRENT_LIMIT_A);
-        // setDriveMotors(0.0, 0.0);
-        // } else if (timeElapsed < ARM_EXTEND_TIME_S + AUTO_THROW_TIME_S +
-        // ARM_EXTEND_TIME_S) {
-        // setArmMotor(-ARM_OUTPUT_POWER);
-        // setIntakeMotor(0.0, INTAKE_CURRENT_LIMIT_A);
-        // setDriveMotors(0.0, 0.0);
-        // } else if (timeElapsed < ARM_EXTEND_TIME_S + AUTO_THROW_TIME_S +
-        // ARM_EXTEND_TIME_S + AUTO_DRIVE_TIME) {
-        // setArmMotor(0.0);
-        // setIntakeMotor(0.0, INTAKE_CURRENT_LIMIT_A);
-        // setDriveMotors(AUTO_DRIVE_SPEED, 0.0);
-        // } else {
-        // setArmMotor(0.0);
-        // setIntakeMotor(0.0, INTAKE_CURRENT_LIMIT_A);
-        // setDriveMotors(0.0, 0.0);
-        // }
+    if((p != kP)) { left_pid.setP(p); kP = p; }
+    if((i != kI)) { left_pid.setI(i); kI = i; }
+    if((d != kD)) { left_pid.setD(d); kD = d; }
+    if((iz != kIz)) { left_pid.setIZone(iz); kIz = iz; }
+    if((ff != kFF)) { left_pid.setFF(ff); kFF = ff; }
+    if((max != kMaxOutput) || (min != kMinOutput)) { 
+      left_pid.setOutputRange(min, max); 
+      kMinOutput = min; kMaxOutput = max; 
     }
+    if((maxV != maxVel)) { right_pid.setSmartMotionMaxVelocity(maxV,0); maxVel = maxV; }
+    if((minV != minVel)) { right_pid.setSmartMotionMinOutputVelocity(minV,0); minVel = minV; }
+    if((maxA != maxAcc)) { right_pid.setSmartMotionMaxAccel(maxA,0); maxAcc = maxA; }
+    if((allE != allowedErr)) { right_pid.setSmartMotionAllowedClosedLoopError(allE,0); allowedErr = allE; }
+    if((maxV != maxVel)) { left_pid.setSmartMotionMaxVelocity(maxV,0); maxVel = maxV; }
+    if((minV != minVel)) { left_pid.setSmartMotionMinOutputVelocity(minV,0); minVel = minV; }
+    if((maxA != maxAcc)) { left_pid.setSmartMotionMaxAccel(maxA,0); maxAcc = maxA; }
+    if((allE != allowedErr)) { left_pid.setSmartMotionAllowedClosedLoopError(allE,0); allowedErr = allE; }
+    double setPoint, processVariable, setPoint1, processVariable1;
+    boolean mode = SmartDashboard.getBoolean("Mode", false);
+    if(mode) {
+      setPoint = SmartDashboard.getNumber("Set Velocity", 0);
+      left_pid.setReference(setPoint+kP*error, CANSparkMax.ControlType.kVelocity);
+      processVariable = left_encoder.getVelocity();
+      setPoint1 = SmartDashboard.getNumber("Set Velocity", 0);
+      right_pid.setReference(setPoint1-kP*error, CANSparkMax.ControlType.kVelocity);
+      processVariable1 = right_encoder.getVelocity();
+      
+    } else {
+      setPoint = SmartDashboard.getNumber("Set Position", 0);
+      setPoint1 = SmartDashboard.getNumber("Set Position", 0);
+
+      /**
+       * As with other PID modes, Smart Motion is set by calling the
+       * setReference method on an existing pid object and setting
+       * the control type to kSmartMotion
+       */
+      left_pid.setReference(setPoint, CANSparkMax.ControlType.kSmartMotion);
+      processVariable = left_encoder.getPosition();
+      right_pid.setReference(setPoint1, CANSparkMax.ControlType.kSmartMotion);
+      processVariable1 = right_encoder.getPosition();
+    }
+    
+    SmartDashboard.putNumber("SetPointL", setPoint);
+    SmartDashboard.putNumber("Process VariableL", processVariable);
+    SmartDashboard.putNumber("OutputL", driveLeftSpark.getAppliedOutput());
+    SmartDashboard.putNumber("SetPointR", setPoint1);
+    SmartDashboard.putNumber("Process VariableR", processVariable1);
+    SmartDashboard.putNumber("OutputR", driveRightSpark.getAppliedOutput());
+  
+    double speedx = 0.6;
+    
+
+    //SmartDashboard.putNumber("Speed", left_encoder.getVelocity()/8);
+    SmartDashboard.putNumber("Right Position:", right_encoder.getPosition());
+    SmartDashboard.putNumber("Left Position:", left_encoder.getPosition());
+
+    //(right_encoder.getPosition()+left_encoder.getPosition()<25)
+
+    // if (m_autoSelected == kNothingAuto) {
+    //   setArmMotor(0.0);
+    //   setIntakeMotor(0.0, INTAKE_CURRENT_LIMIT_A);
+    //   setDriveMotors(0.0, 0.0);
+    //   return;
+    // }
+
+    // double timeElapsed = Timer.getFPGATimestamp() - autonomousStartTime;
+
+    // if (timeElapsed < ARM_EXTEND_TIME_S) {
+    //   setArmMotor(ARM_OUTPUT_POWER);
+    //   setIntakeMotor(0.0, INTAKE_CURRENT_LIMIT_A);
+    //   setDriveMotors(0.0, 0.0);
+    // } else if (timeElapsed < ARM_EXTEND_TIME_S + AUTO_THROW_TIME_S) {
+    //   setArmMotor(0.0);
+    //   setIntakeMotor(autonomousIntakePower, INTAKE_CURRENT_LIMIT_A);
+    //   setDriveMotors(0.0, 0.0);
+    // } else if (timeElapsed < ARM_EXTEND_TIME_S + AUTO_THROW_TIME_S + ARM_EXTEND_TIME_S) {
+    //   setArmMotor(-ARM_OUTPUT_POWER);
+    //   setIntakeMotor(0.0, INTAKE_CURRENT_LIMIT_A);
+    //   setDriveMotors(0.0, 0.0);
+    // } else if (timeElapsed < ARM_EXTEND_TIME_S + AUTO_THROW_TIME_S + ARM_EXTEND_TIME_S + AUTO_DRIVE_TIME) {
+    //   setArmMotor(0.0);
+    //   setIntakeMotor(0.0, INTAKE_CURRENT_LIMIT_A);
+    //   setDriveMotors(AUTO_DRIVE_SPEED, 0.0);
+    // } else {
+    //   setArmMotor(0.0);
+    //   setIntakeMotor(0.0, INTAKE_CURRENT_LIMIT_A);
+    //   setDriveMotors(0.0, 0.0);
+    // }
+  }
 
   /**
    * Used to remember the last game piece picked up to apply some holding power.
