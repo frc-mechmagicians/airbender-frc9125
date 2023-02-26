@@ -288,23 +288,30 @@ public class Robot2 extends TimedRobot {
 
   @Override
   public void teleopPeriodic() {
-    if (j.getRawButton(1)) {
-      setArmMotor(.3);
+    setArmMotor(j.getRawAxis(5)*.3);
+    double intakePower;
+    int intakeAmps;
+    if (j.getRawButtonPressed(5) || j.getRawAxis(3) != 0) {
+      // cube in or cone out
+      intakePower = INTAKE_OUTPUT_POWER;
+      intakeAmps = INTAKE_CURRENT_LIMIT_A;
+      lastGamePiece = CUBE;
+    } else if (j.getRawButtonPressed(6) || j.getRawAxis(2) != 0) {
+      // cone in or cube out
+      intakePower = -INTAKE_OUTPUT_POWER;
+      intakeAmps = INTAKE_CURRENT_LIMIT_A;
+      lastGamePiece = CONE;
+    } else if (lastGamePiece == CUBE) {
+      intakePower = INTAKE_HOLD_POWER;
+      intakeAmps = INTAKE_HOLD_CURRENT_LIMIT_A;
+    } else if (lastGamePiece == CONE) {
+      intakePower = -INTAKE_HOLD_POWER;
+      intakeAmps = INTAKE_HOLD_CURRENT_LIMIT_A;
+    } else {
+      intakePower = 0.0;
+      intakeAmps = 0;
     }
-    if(j.getRawButton(2)){
-      setArmMotor(-.3);
-    }
-    
-
-    if(j.getRawButton(3)){
-      setIntakeMotor(1, 20);
-    }
-    if(j.getRawButton(4)){
-      setIntakeMotor(-1, 20);
-    }
-    if(j.getRawButton(5)){
-      setIntakeMotor(0, 20);
-    }
+    setIntakeMotor(intakePower, intakeAmps);
 
     
 
