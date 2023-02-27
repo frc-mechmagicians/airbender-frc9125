@@ -14,7 +14,7 @@ import edu.wpi.first.wpilibj.Timer;
 import edu.wpi.first.wpilibj.smartdashboard.SendableChooser;
 import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
 
-public class Robot2 extends TimedRobot {
+public class Robot extends TimedRobot {
   /*
    * Autonomous selection options.
    */
@@ -59,6 +59,7 @@ public class Robot2 extends TimedRobot {
    * that you feel is more comfortable.
    */
   Joystick j = new Joystick(0);
+  Joystick j1 = new Joystick(1);
 
   /*
    * Magic numbers. Use these to adjust settings.
@@ -67,7 +68,7 @@ public class Robot2 extends TimedRobot {
   /**
    * How many amps the arm motor can use.
    */
-  static final int ARM_CURRENT_LIMIT_A = 20;
+  static final int ARM_CURRENT_LIMIT_A = 30;
 
   /**
    * Percent output to run the arm up/down at
@@ -77,22 +78,22 @@ public class Robot2 extends TimedRobot {
   /**
    * How many amps the intake can use while picking up
    */
-  static final int INTAKE_CURRENT_LIMIT_A = 25;
+  // static final int INTAKE_CURRENT_LIMIT_A = 25;
 
   /**
    * How many amps the intake can use while holding
    */
-  static final int INTAKE_HOLD_CURRENT_LIMIT_A = 5;
+  // static final int INTAKE_HOLD_CURRENT_LIMIT_A = 5;
 
   /**
    * Percent output for intaking
    */
-  static final double INTAKE_OUTPUT_POWER = 1.0;
+  // static final double INTAKE_OUTPUT_POWER = 1.0;
 
   /**
    * Percent output for holding
    */
-  static final double INTAKE_HOLD_POWER = 0.07;
+  // static final double INTAKE_HOLD_POWER = 0.07;
 
   /**
    * Time to extend or retract arm in auto
@@ -107,12 +108,12 @@ public class Robot2 extends TimedRobot {
   /**
    * Time to drive back in auto
    */
-  static final double AUTO_DRIVE_TIME = 6.0;
+   static final double AUTO_DRIVE_TIME = 6.0;
 
   /**
    * Speed to drive backwards in auto
    */
-  static final double AUTO_DRIVE_SPEED = -0.25;
+   static final double AUTO_DRIVE_SPEED = -0.25;
 
   /**
    * This method is run once when the robot is first started up.
@@ -217,6 +218,9 @@ public class Robot2 extends TimedRobot {
 
   @Override
   public void autonomousInit() {
+
+  
+
     driveLeftSpark.setIdleMode(IdleMode.kBrake);
     driveLeftSpark2.setIdleMode(IdleMode.kBrake);
     driveRightSpark.setIdleMode(IdleMode.kBrake);
@@ -234,6 +238,12 @@ public class Robot2 extends TimedRobot {
     autonomousStartTime = Timer.getFPGATimestamp();
   }
 
+  
+  static final int INTAKE_CURRENT_LIMIT_A = 30;
+  static final int INTAKE_HOLD_CURRENT_LIMIT_A = 5;
+  static final double INTAKE_OUTPUT_POWER = 1.0;
+  static final double INTAKE_HOLD_POWER = 0.07;
+
   @Override
   public void autonomousPeriodic() {
     if (m_autoSelected == kNothingAuto) {
@@ -245,22 +255,46 @@ public class Robot2 extends TimedRobot {
 
     double timeElapsed = Timer.getFPGATimestamp() - autonomousStartTime;
 
+
+	// move forward
+  // raise arm fully
+  // turn intake motor drop
+  // pull arm back
+  // move backward
+
+  /*
+   * extend arm
+   * pick the object
+   * bring down arm ?
+   * move forward
+   * extend arm
+   * release object
+   * bring down arm ?
+   * move backward
+   * 
+   */
+    // extend arm out for two seconds
     if (timeElapsed < ARM_EXTEND_TIME_S) {
       setArmMotor(ARM_OUTPUT_POWER);
       setIntakeMotor(0.0, INTAKE_CURRENT_LIMIT_A);
       setDriveMotors(0.0, 0.0);
+    // stop moving arm
+    // if time is less that time it takes for arm to extend + time it takes to throw piece
+    // use the intake
     } else if (timeElapsed < ARM_EXTEND_TIME_S + AUTO_THROW_TIME_S) {
       setArmMotor(0.0);
       setIntakeMotor(autonomousIntakePower, INTAKE_CURRENT_LIMIT_A);
       setDriveMotors(0.0, 0.0);
+      //bring arm down
     } else if (timeElapsed < ARM_EXTEND_TIME_S + AUTO_THROW_TIME_S + ARM_EXTEND_TIME_S) {
-      setArmMotor(-ARM_OUTPUT_POWER);
+      setArmMotor(-ARM_OUTPUT_POWER); // bring down arm
       setIntakeMotor(0.0, INTAKE_CURRENT_LIMIT_A);
       setDriveMotors(0.0, 0.0);
+      //drive backward
     } else if (timeElapsed < ARM_EXTEND_TIME_S + AUTO_THROW_TIME_S + ARM_EXTEND_TIME_S + AUTO_DRIVE_TIME) {
       setArmMotor(0.0);
       setIntakeMotor(0.0, INTAKE_CURRENT_LIMIT_A);
-      setDriveMotors(AUTO_DRIVE_SPEED, 0.0);
+      setDriveMotors(AUTO_DRIVE_SPEED, 0.0); 
     } else {
       setArmMotor(0.0);
       setIntakeMotor(0.0, INTAKE_CURRENT_LIMIT_A);
@@ -291,12 +325,12 @@ public class Robot2 extends TimedRobot {
     setArmMotor(j.getRawAxis(5)*.3);
     double intakePower;
     int intakeAmps;
-    if (j.getRawButtonPressed(5) || j.getRawAxis(3) != 0) {
+    if (j.getRawButton(3) || j.getRawButton(6)) {
       // cube in or cone out
       intakePower = INTAKE_OUTPUT_POWER;
       intakeAmps = INTAKE_CURRENT_LIMIT_A;
       lastGamePiece = CUBE;
-    } else if (j.getRawButtonPressed(6) || j.getRawAxis(2) != 0) {
+    } else if (j.getRawButton(5) || j.getRawButton(4)) {
       // cone in or cube out
       intakePower = -INTAKE_OUTPUT_POWER;
       intakeAmps = INTAKE_CURRENT_LIMIT_A;
@@ -314,6 +348,16 @@ public class Robot2 extends TimedRobot {
     setIntakeMotor(intakePower, intakeAmps);
 
     
+    /* 
+    if(j.getRawButton(3)){
+      setIntakeMotor(1, 20);
+    }
+    if(j.getRawButton(4)){
+      setIntakeMotor(-1, 20);
+    }
+    
+
+    */
 
     /*
      * Negative signs here because the values from the analog sticks are backwards
