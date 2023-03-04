@@ -1,25 +1,17 @@
-// Copyright (c) FIRST and other WPILib contributors.
-// Open Source Software; you can modify and/or share it under the terms of
-// the WPILib BSD license file in the root directory of this project.
-
 package frc.robot;
 
-import com.ctre.phoenix.motorcontrol.ControlMode;
-import com.ctre.phoenix.motorcontrol.NeutralMode;
-import com.ctre.phoenix.motorcontrol.can.VictorSPX;
+import com.revrobotics.CANSparkMax;
 import com.revrobotics.CANSparkMax.IdleMode;
 import com.revrobotics.CANSparkMaxLowLevel.MotorType;
-import com.revrobotics.RelativeEncoder;
-import com.revrobotics.SparkMaxPIDController;
-import com.revrobotics.CANSparkMax;
 
+import edu.wpi.first.math.filter.SlewRateLimiter;
 import edu.wpi.first.wpilibj.Joystick;
 import edu.wpi.first.wpilibj.TimedRobot;
 import edu.wpi.first.wpilibj.Timer;
-import edu.wpi.first.wpilibj.XboxController;
+import edu.wpi.first.wpilibj.drive.DifferentialDrive;
+import edu.wpi.first.wpilibj.motorcontrol.MotorControllerGroup;
 import edu.wpi.first.wpilibj.smartdashboard.SendableChooser;
 import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
-import edu.wpi.first.math.filter.SlewRateLimiter;
 
 public class Robot extends TimedRobot {
   /*
@@ -28,12 +20,8 @@ public class Robot extends TimedRobot {
   private static final String kNothingAuto = "do nothing";
   private static final String kConeAuto = "cone";
   private static final String kCubeAuto = "cube";
-  private CANSparkMax m_motor;
   private String m_autoSelected;
   private final SendableChooser<String> m_chooser = new SendableChooser<>();
-  private SparkMaxPIDController m_pidController;
-  private RelativeEncoder m_encoder;
-  public double kP, kI, kD, kIz, kFF, kMaxOutput, kMinOutput, maxRPM, maxVel, minVel, maxAcc, allowedErr;
 
   /*
    * Drive motor controller instances.
@@ -42,12 +30,19 @@ public class Robot extends TimedRobot {
    * Change kBrushed to kBrushless if you are using NEO's.
    * Use the appropriate other class if you are using different controllers.
    */
-  CANSparkMax driveLeftSpark= new CANSparkMax(1, MotorType.kBrushless);
-  CANSparkMax driveRightSpark = new CANSparkMax(2, MotorType.kBrushless);
-  CANSparkMax driveLeftSparktwo = new CANSparkMax(3, MotorType.kBrushless);
-  CANSparkMax driveRightSparktwo = new CANSparkMax(4, MotorType.kBrushless);
-  //VictorSPX driveLeftVictor = new VictorSPX(3);
-  //VictorSPX driveRightVictor = new VictorSPX(4);
+  CANSparkMax driveLeftSpark = new CANSparkMax(1, MotorType.kBrushless);
+  CANSparkMax driveRightSpark = new CANSparkMax(3, MotorType.kBrushless);
+  CANSparkMax driveLeftSpark2 = new CANSparkMax(2, MotorType.kBrushless);
+  CANSparkMax driveRightSpark2 = new CANSparkMax(4, MotorType.kBrushless);
+
+  MotorControllerGroup leftMotors = new MotorControllerGroup(driveLeftSpark, driveLeftSpark2);
+  MotorControllerGroup rightMotors = new MotorControllerGroup(driveRightSpark, driveRightSpark2);
+
+  
+
+  DifferentialDrive drive = new DifferentialDrive(leftMotors, rightMotors);
+  SlewRateLimiter m_speedLimiter = new SlewRateLimiter(3);
+  SlewRateLimiter m_rotLimiter = new SlewRateLimiter(3);
 
   /*
    * Mechanism motor controller instances.
@@ -71,14 +66,8 @@ public class Robot extends TimedRobot {
    * mode (switch set to X on the bottom) or a different controller
    * that you feel is more comfortable.
    */
-  Joystick j = new Joystick(0);
-  XboxController xbox = new XboxController(0);
-
-  private final Drivetrain m_drive = new Drivetrain();
-
-  // Slew rate limiters to make joystick inputs more gentle; 1/3 sec from 0 to 1.
-  private final SlewRateLimiter m_speedLimiter = new SlewRateLimiter(3);
-  private final SlewRateLimiter m_rotLimiter = new SlewRateLimiter(3);
+  Joystick j = new Joystick(1);
+  Joystick j1 = new Joystick(0);
 
   /*
    * Magic numbers. Use these to adjust settings.
@@ -87,7 +76,7 @@ public class Robot extends TimedRobot {
   /**
    * How many amps the arm motor can use.
    */
-  static final int ARM_CURRENT_LIMIT_A = 20;
+  static final int ARM_CURRENT_LIMIT_A = 30;
 
   /**
    * Percent output to run the arm up/down at
@@ -97,22 +86,22 @@ public class Robot extends TimedRobot {
   /**
    * How many amps the intake can use while picking up
    */
-  static final int INTAKE_CURRENT_LIMIT_A = 25;
+  // static final int INTAKE_CURRENT_LIMIT_A = 25;
 
   /**
    * How many amps the intake can use while holding
    */
-  static final int INTAKE_HOLD_CURRENT_LIMIT_A = 5;
+  // static final int INTAKE_HOLD_CURRENT_LIMIT_A = 5;
 
   /**
    * Percent output for intaking
    */
-  static final double INTAKE_OUTPUT_POWER = 1.0;
+  // static final double INTAKE_OUTPUT_POWER = 1.0;
 
   /**
    * Percent output for holding
    */
-  static final double INTAKE_HOLD_POWER = 0.07;
+  // static final double INTAKE_HOLD_POWER = 0.07;
 
   /**
    * Time to extend or retract arm in auto
@@ -127,95 +116,22 @@ public class Robot extends TimedRobot {
   /**
    * Time to drive back in auto
    */
-  static final double AUTO_DRIVE_TIME = 6.0;
+   static final double AUTO_DRIVE_TIME = 6.0;
 
   /**
    * Speed to drive backwards in auto
    */
-  static final double AUTO_DRIVE_SPEED = -0.25;
+   static final double AUTO_DRIVE_SPEED = -0.25;
 
   /**
    * This method is run once when the robot is first started up.
    */
   @Override
   public void robotInit() {
-    m_motor = new CANSparkMax(deviceID, MotorType.kBrushless);
-
-    /**
-     * The RestoreFactoryDefaults method can be used to reset the configuration parameters
-     * in the SPARK MAX to their factory default state. If no argument is passed, these
-     * parameters will not persist between power cycles
-     */
-    m_motor.restoreFactoryDefaults();
-
-     // initialze PID controller and encoder objects
-    m_pidController = m_motor.getPIDController();
-    m_encoder = m_motor.getEncoder();
-
-    // PID coefficients
-    kP = 5e-5; 
-    kI = 1e-6;
-    kD = 0; 
-    kIz = 0; 
-    kFF = 0.000156; 
-    kMaxOutput = 1; 
-    kMinOutput = -1;
-    maxRPM = 5700;
-
-    // Smart Motion Coefficients
-    maxVel = 2000; // rpm
-    maxAcc = 1500;
-
     m_chooser.setDefaultOption("do nothing", kNothingAuto);
     m_chooser.addOption("cone and mobility", kConeAuto);
     m_chooser.addOption("cube and mobility", kCubeAuto);
     SmartDashboard.putData("Auto choices", m_chooser);
-
-     // set PID coefficients
-    m_pidController.setP(kP);
-    m_pidController.setI(kI);
-    m_pidController.setD(kD);
-    m_pidController.setIZone(kIz);
-    m_pidController.setFF(kFF);
-    m_pidController.setOutputRange(kMinOutput, kMaxOutput);
-
-    /**
-     * Smart Motion coefficients are set on a SparkMaxPIDController object
-     * 
-     * - setSmartMotionMaxVelocity() will limit the velocity in RPM of
-     * the pid controller in Smart Motion mode
-     * - setSmartMotionMinOutputVelocity() will put a lower bound in
-     * RPM of the pid controller in Smart Motion mode
-     * - setSmartMotionMaxAccel() will limit the acceleration in RPM^2
-     * of the pid controller in Smart Motion mode
-     * - setSmartMotionAllowedClosedLoopError() will set the max allowed
-     * error for the pid controller in Smart Motion mode
-     */
-    int smartMotionSlot = 0;
-    m_pidController.setSmartMotionMaxVelocity(maxVel, smartMotionSlot);
-    m_pidController.setSmartMotionMinOutputVelocity(minVel, smartMotionSlot);
-    m_pidController.setSmartMotionMaxAccel(maxAcc, smartMotionSlot);
-    m_pidController.setSmartMotionAllowedClosedLoopError(allowedErr, smartMotionSlot);
-
-    // display PID coefficients on SmartDashboard
-    SmartDashboard.putNumber("P Gain", kP);
-    SmartDashboard.putNumber("I Gain", kI);
-    SmartDashboard.putNumber("D Gain", kD);
-    SmartDashboard.putNumber("I Zone", kIz);
-    SmartDashboard.putNumber("Feed Forward", kFF);
-    SmartDashboard.putNumber("Max Output", kMaxOutput);
-    SmartDashboard.putNumber("Min Output", kMinOutput);
-
-    // display Smart Motion coefficients
-    SmartDashboard.putNumber("Max Velocity", maxVel);
-    SmartDashboard.putNumber("Min Velocity", minVel);
-    SmartDashboard.putNumber("Max Acceleration", maxAcc);
-    SmartDashboard.putNumber("Allowed Closed Loop Error", allowedErr);
-    SmartDashboard.putNumber("Set Position", 0);
-    SmartDashboard.putNumber("Set Velocity", 5);
-
-    // button to toggle between velocity and smart motion modes
-    SmartDashboard.putBoolean("Mode", true);
 
     /*
      * You will need to change some of these from false to true.
@@ -225,9 +141,9 @@ public class Robot extends TimedRobot {
      * if it is going the wrong way. Repeat for the other 3 motors.
      */
     driveLeftSpark.setInverted(false);
-    //driveLeftVictor.setInverted(false);
-    driveRightSpark.setInverted(false);
-    //driveRightVictor.setInverted(false);
+    driveLeftSpark2.setInverted(false);
+    driveRightSpark.setInverted(true);
+    driveRightSpark2.setInverted(true);
 
     /*
      * Set the arm and intake to brake mode to help hold position.
@@ -265,11 +181,9 @@ public class Robot extends TimedRobot {
     // see note above in robotInit about commenting these out one by one to set
     // directions.
     driveLeftSpark.set(left);
-    driveLeftSparktwo.set(left);
-   // driveLeftVictor.set(ControlMode.PercentOutput, left);
+    driveLeftSpark2.set(left);
     driveRightSpark.set(right);
-    driveRightSparktwo.set(right);
-    //driveRightVictor.set(ControlMode.PercentOutput, right);
+    driveRightSpark2.set(right);
   }
 
   /**
@@ -312,10 +226,13 @@ public class Robot extends TimedRobot {
 
   @Override
   public void autonomousInit() {
+
+  
+
     driveLeftSpark.setIdleMode(IdleMode.kBrake);
-   // driveLeftVictor.setNeutralMode(NeutralMode.Brake);
+    driveLeftSpark2.setIdleMode(IdleMode.kBrake);
     driveRightSpark.setIdleMode(IdleMode.kBrake);
-   // driveRightVictor.setNeutralMode(NeutralMode.Brake);
+    driveRightSpark2.setIdleMode(IdleMode.kBrake);;
 
     m_autoSelected = m_chooser.getSelected();
     System.out.println("Auto selected: " + m_autoSelected);
@@ -329,11 +246,14 @@ public class Robot extends TimedRobot {
     autonomousStartTime = Timer.getFPGATimestamp();
   }
 
+  
+  static final int INTAKE_CURRENT_LIMIT_A = 30;
+  static final int INTAKE_HOLD_CURRENT_LIMIT_A = 5;
+  static final double INTAKE_OUTPUT_POWER = 1.0;
+  static final double INTAKE_HOLD_POWER = 0.07;
+
   @Override
   public void autonomousPeriodic() {
-
-
-    
     if (m_autoSelected == kNothingAuto) {
       setArmMotor(0.0);
       setIntakeMotor(0.0, INTAKE_CURRENT_LIMIT_A);
@@ -341,31 +261,55 @@ public class Robot extends TimedRobot {
       return;
     }
 
+
+
     double timeElapsed = Timer.getFPGATimestamp() - autonomousStartTime;
 
+
+	// move forward
+  // raise arm fully
+  // turn intake motor drop
+  // pull arm back
+  // move backward
+
+  /*
+   * extend arm
+   * pick the object
+   * bring down arm ?
+   * move forward
+   * extend arm
+   * release object
+   * bring down arm ?
+   * move backward
+   * 
+   */
+    // extend arm out for two seconds
     if (timeElapsed < ARM_EXTEND_TIME_S) {
       setArmMotor(ARM_OUTPUT_POWER);
-      setIntakeMotor(0.0, INTAKE_CURRENT_LIMIT_A);
+      setIntakeMotor(20.0, INTAKE_CURRENT_LIMIT_A);
       setDriveMotors(0.0, 0.0);
+    // stop moving arm
+    // if time is less that time it takes for arm to extend + time it takes to throw piece
+    // use the intake
     } else if (timeElapsed < ARM_EXTEND_TIME_S + AUTO_THROW_TIME_S) {
       setArmMotor(0.0);
-      setIntakeMotor(autonomousIntakePower, INTAKE_CURRENT_LIMIT_A);
+      setIntakeMotor(20.0, INTAKE_CURRENT_LIMIT_A);
       setDriveMotors(0.0, 0.0);
+      //bring arm down
     } else if (timeElapsed < ARM_EXTEND_TIME_S + AUTO_THROW_TIME_S + ARM_EXTEND_TIME_S) {
-      setArmMotor(-ARM_OUTPUT_POWER);
-      setIntakeMotor(0.0, INTAKE_CURRENT_LIMIT_A);
+      setArmMotor(-ARM_OUTPUT_POWER); // bring down arm
+      setIntakeMotor(20.0, INTAKE_CURRENT_LIMIT_A);
       setDriveMotors(0.0, 0.0);
+      //drive backward
     } else if (timeElapsed < ARM_EXTEND_TIME_S + AUTO_THROW_TIME_S + ARM_EXTEND_TIME_S + AUTO_DRIVE_TIME) {
       setArmMotor(0.0);
-      setIntakeMotor(0.0, INTAKE_CURRENT_LIMIT_A);
-      setDriveMotors(AUTO_DRIVE_SPEED, 0.0);
+      setIntakeMotor(20.0, INTAKE_CURRENT_LIMIT_A);
+      setDriveMotors(AUTO_DRIVE_SPEED, 0.0); 
     } else {
       setArmMotor(0.0);
-      setIntakeMotor(0.0, INTAKE_CURRENT_LIMIT_A);
+      setIntakeMotor(20.0, INTAKE_CURRENT_LIMIT_A);
       setDriveMotors(0.0, 0.0);
     }
-    
-    
   }
 
   /**
@@ -376,90 +320,34 @@ public class Robot extends TimedRobot {
   static final int NOTHING = 3;
   int lastGamePiece;
 
+  double previous_y = j.getRawAxis(1);
+
   @Override
   public void teleopInit() {
     driveLeftSpark.setIdleMode(IdleMode.kCoast);
-    driveLeftSparktwo.setIdleMode(IdleMode.kCoast);
-    //.driveLeftVictor.setNeutralMode(NeutralMode.Coast);
+    driveLeftSpark2.setIdleMode(IdleMode.kCoast);
     driveRightSpark.setIdleMode(IdleMode.kCoast);
-    driveRightSparktwo.setIdleMode(IdleMode.kCoast);
-    //driveRightVictor.setNeutralMode(NeutralMode.Coast);
+    driveRightSpark2.setIdleMode(IdleMode.kCoast);
 
     lastGamePiece = NOTHING;
+
+    previous_y = j.getRawAxis(1);
   }
 
   @Override
   public void teleopPeriodic() {
-    // read PID coefficients from SmartDashboard
-    double p = SmartDashboard.getNumber("P Gain", 0);
-    double i = SmartDashboard.getNumber("I Gain", 0);
-    double d = SmartDashboard.getNumber("D Gain", 0);
-    double iz = SmartDashboard.getNumber("I Zone", 0);
-    double ff = SmartDashboard.getNumber("Feed Forward", 0);
-    double max = SmartDashboard.getNumber("Max Output", 0);
-    double min = SmartDashboard.getNumber("Min Output", 0);
-    double maxV = SmartDashboard.getNumber("Max Velocity", 0);
-    double minV = SmartDashboard.getNumber("Min Velocity", 0);
-    double maxA = SmartDashboard.getNumber("Max Acceleration", 0);
-    double allE = SmartDashboard.getNumber("Allowed Closed Loop Error", 0);
-
-    // if PID coefficients on SmartDashboard have changed, write new values to controller
-    if((p != kP)) { m_pidController.setP(p); kP = p; }
-    if((i != kI)) { m_pidController.setI(i); kI = i; }
-    if((d != kD)) { m_pidController.setD(d); kD = d; }
-    if((iz != kIz)) { m_pidController.setIZone(iz); kIz = iz; }
-    if((ff != kFF)) { m_pidController.setFF(ff); kFF = ff; }
-    if((max != kMaxOutput) || (min != kMinOutput)) { 
-      m_pidController.setOutputRange(min, max); 
-      kMinOutput = min; kMaxOutput = max; 
+    if(j1.getRawButton(8)){
+      setArmMotor(.3);
     }
-    if((maxV != maxVel)) { m_pidController.setSmartMotionMaxVelocity(maxV,0); maxVel = maxV; }
-    if((minV != minVel)) { m_pidController.setSmartMotionMinOutputVelocity(minV,0); minVel = minV; }
-    if((maxA != maxAcc)) { m_pidController.setSmartMotionMaxAccel(maxA,0); maxAcc = maxA; }
-    if((allE != allowedErr)) { m_pidController.setSmartMotionAllowedClosedLoopError(allE,0); allowedErr = allE; }
-
-    double setPoint, processVariable;
-    boolean mode = SmartDashboard.getBoolean("Mode", false);
-    if(mode) {
-      setPoint = SmartDashboard.getNumber("Set Velocity", 0);
-      m_pidController.setReference(setPoint, CANSparkMax.ControlType.kVelocity);
-      processVariable = m_encoder.getVelocity();
-    } else {
-      setPoint = SmartDashboard.getNumber("Set Position", 0);
-      /**
-       * As with other PID modes, Smart Motion is set by calling the
-       * setReference method on an existing pid object and setting
-       * the control type to kSmartMotion
-       */
-      m_pidController.setReference(setPoint, CANSparkMax.ControlType.kSmartMotion);
-      processVariable = m_encoder.getPosition();
-    }
-    
-    SmartDashboard.putNumber("SetPoint", setPoint);
-    SmartDashboard.putNumber("Process Variable", processVariable);
-    SmartDashboard.putNumber("Output", m_motor.getAppliedOutput());
-
-    double armPower;
-    if (j.getRawButton(7)) {
-      // lower the arm
-      armPower = -ARM_OUTPUT_POWER;
-    } else if (j.getRawButton(5)) {
-      // raise the arm
-      armPower = ARM_OUTPUT_POWER;
-    } else {
-      // do nothing and let it sit where it is
-      armPower = 0.0;
-    }
-    setArmMotor(armPower);
-  
+    setArmMotor(j1.getRawAxis(1)*.3);
     double intakePower;
     int intakeAmps;
-    if (j.getRawButton(8)) {
+    if (j1.getRawButton(3) || j1.getRawButton(6)) {
       // cube in or cone out
       intakePower = INTAKE_OUTPUT_POWER;
       intakeAmps = INTAKE_CURRENT_LIMIT_A;
       lastGamePiece = CUBE;
-    } else if (j.getRawButton(6)) {
+    } else if (j1.getRawButton(5) || j1.getRawButton(4)) {
       // cone in or cube out
       intakePower = -INTAKE_OUTPUT_POWER;
       intakeAmps = INTAKE_CURRENT_LIMIT_A;
@@ -476,22 +364,37 @@ public class Robot extends TimedRobot {
     }
     setIntakeMotor(intakePower, intakeAmps);
 
+    
+    /* 
+    if(j.getRawButton(3)){
+      setIntakeMotor(1, 20);
+    }
+    if(j.getRawButton(4)){
+      setIntakeMotor(-1, 20);
+    }
+    
+    */
+
     /*
      * Negative signs here because the values from the analog sticks are backwards
      * from what we want. Forward returns a negative when we want it positive.
      */
-    setDriveMotors(-j.getRawAxis(1), -j.getRawAxis(2));
-
-    // Get the x speed. We are inverting this because Xbox controllers return
-    // negative values when we push forward.
-    final var xSpeed = -m_speedLimiter.calculate(xbox.getLeftY()) * Drivetrain.kMaxSpeed;
-
-    // Get the rate of angular rotation. We are inverting this because we want a
-    // positive value when we pull to the left (remember, CCW is positive in
-    // mathematics). Xbox controllers return positive values when you pull to
-    // the right by default.
-    final var rot = -m_rotLimiter.calculate(xbox.getRightX()) * Drivetrain.kMaxAngularSpeed;
-
-    m_drive.drive(xSpeed, rot);
+    double axis = 1;
+    // SmartDashboard.putNumber("Previous", previous_y);
+    // if (j.getRawAxis(1) > 0.25) {
+    //   setDriveMotors(-j.getRawAxis(1)*.3, -j.getRawAxis(0)*.3);
+    //   previous_y = j.getRawAxis(1);    
+    // }
+    // else {
+    //   previous_y = previous_y-0.03;
+    //   if (previous_y < 0) {
+    //     previous_y = 0;
+    //   }
+    //   setDriveMotors(-previous_y*.3,-j.getRawAxis(0)*.3);
+    // }
+    drive.setMaxOutput(0.75);
+    final var xSpeed = -m_speedLimiter.calculate(-j.getRawAxis(1));
+    final var rot = -m_rotLimiter.calculate(-j.getRawAxis(0));
+    drive.arcadeDrive(xSpeed, rot);
   }
 }
