@@ -13,7 +13,7 @@ import edu.wpi.first.wpilibj.motorcontrol.MotorControllerGroup;
 import edu.wpi.first.wpilibj.smartdashboard.SendableChooser;
 import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
 
-public class Robot extends TimedRobot {
+public class RobotAuton extends TimedRobot {
   /*
    * Autonomous selection options.
    */
@@ -106,17 +106,17 @@ public class Robot extends TimedRobot {
   /**
    * Time to extend or retract arm in auto
    */
-  static final double ARM_EXTEND_TIME_S = 2.0;
+  static final double ARM_EXTEND_TIME_S = 1.0;
 
   /**
    * Time to throw game piece in auto
    */
-  static final double AUTO_THROW_TIME_S = 0.375;
+  static final double AUTO_THROW_TIME_S = 1;
 
   /**
    * Time to drive back in auto
    */
-   static final double AUTO_DRIVE_TIME = 6.0;
+  static double AUTO_DRIVE_TIME = 3.0;
 
   /**
    * Speed to drive backwards in auto
@@ -128,9 +128,8 @@ public class Robot extends TimedRobot {
    */
   @Override
   public void robotInit() {
-    m_chooser.setDefaultOption("do nothing", kNothingAuto);
-    m_chooser.addOption("cone and mobility", kConeAuto);
-    m_chooser.addOption("cube and mobility", kCubeAuto);
+    m_chooser.setDefaultOption("Sides", kNothingAuto);
+    m_chooser.addOption("Middle", kConeAuto);
     SmartDashboard.putData("Auto choices", m_chooser);
 
     /*
@@ -237,11 +236,7 @@ public class Robot extends TimedRobot {
     m_autoSelected = m_chooser.getSelected();
     System.out.println("Auto selected: " + m_autoSelected);
 
-    if (m_autoSelected == kConeAuto) {
-      autonomousIntakePower = INTAKE_OUTPUT_POWER;
-    } else if (m_autoSelected == kCubeAuto) {
-      autonomousIntakePower = -INTAKE_OUTPUT_POWER;
-    }
+    autonomousIntakePower = INTAKE_OUTPUT_POWER;
 
     autonomousStartTime = Timer.getFPGATimestamp();
   }
@@ -254,10 +249,8 @@ public class Robot extends TimedRobot {
 
   @Override
   public void autonomousPeriodic() {
-    if (m_autoSelected == kNothingAuto) {
-      setArmMotor(0.0);
-      setIntakeMotor(0.0, INTAKE_CURRENT_LIMIT_A);
-      setDriveMotors(0.0, 0.0);
+    if (m_autoSelected == kConeAuto) {
+      AUTO_DRIVE_TIME = 3.0;
       return;
     }
 
@@ -285,8 +278,8 @@ public class Robot extends TimedRobot {
    */
     // extend arm out for two seconds
     if (timeElapsed < ARM_EXTEND_TIME_S) {
-      setArmMotor(ARM_OUTPUT_POWER);
-      setIntakeMotor(20.0, INTAKE_CURRENT_LIMIT_A);
+      setArmMotor(-ARM_OUTPUT_POWER);
+      setIntakeMotor(0.0, INTAKE_CURRENT_LIMIT_A);
       setDriveMotors(0.0, 0.0);
     // stop moving arm
     // if time is less that time it takes for arm to extend + time it takes to throw piece
@@ -297,17 +290,17 @@ public class Robot extends TimedRobot {
       setDriveMotors(0.0, 0.0);
       //bring arm down
     } else if (timeElapsed < ARM_EXTEND_TIME_S + AUTO_THROW_TIME_S + ARM_EXTEND_TIME_S) {
-      setArmMotor(-ARM_OUTPUT_POWER); // bring down arm
-      setIntakeMotor(20.0, INTAKE_CURRENT_LIMIT_A);
+      setArmMotor(ARM_OUTPUT_POWER); // bring down arm
+      setIntakeMotor(0.0, INTAKE_CURRENT_LIMIT_A);
       setDriveMotors(0.0, 0.0);
       //drive backward
     } else if (timeElapsed < ARM_EXTEND_TIME_S + AUTO_THROW_TIME_S + ARM_EXTEND_TIME_S + AUTO_DRIVE_TIME) {
       setArmMotor(0.0);
-      setIntakeMotor(20.0, INTAKE_CURRENT_LIMIT_A);
+      setIntakeMotor(0.0, INTAKE_CURRENT_LIMIT_A);
       setDriveMotors(AUTO_DRIVE_SPEED, 0.0); 
     } else {
       setArmMotor(0.0);
-      setIntakeMotor(20.0, INTAKE_CURRENT_LIMIT_A);
+      setIntakeMotor(0.0, INTAKE_CURRENT_LIMIT_A);
       setDriveMotors(0.0, 0.0);
     }
   }
@@ -392,9 +385,18 @@ public class Robot extends TimedRobot {
     //   }
     //   setDriveMotors(-previous_y*.3,-j.getRawAxis(0)*.3);
     // }
-    drive.setMaxOutput(0.75);
-    final var xSpeed = -m_speedLimiter.calculate(-j.getRawAxis(1));
-    final var rot = -m_rotLimiter.calculate(-j.getRawAxis(0));
-    drive.arcadeDrive(xSpeed, rot);
+    if (j.getRawAxis(3) != 0) {
+        drive.setMaxOutput(0.7);
+    } else {
+
+        drive.setMaxOutput(0.3);
+    }
+     var xSpeed = m_speedLimiter.calculate(-j.getRawAxis(1));
+    final var rot = m_rotLimiter.calculate(-j.getRawAxis(4));
+    if (rot != 0 && xSpeed == 0) {
+        xSpeed = 0.01;
+    }
+    
+    drive.curvatureDrive(xSpeed, rot, j.getRawButton(6));
   }
 }
