@@ -41,8 +41,8 @@ public class RobotAuton extends TimedRobot {
   
 
   DifferentialDrive drive = new DifferentialDrive(leftMotors, rightMotors);
-  SlewRateLimiter m_speedLimiter = new SlewRateLimiter(3);
-  SlewRateLimiter m_rotLimiter = new SlewRateLimiter(3);
+  SlewRateLimiter m_speedLimiter = new SlewRateLimiter(2);
+  SlewRateLimiter m_rotLimiter = new SlewRateLimiter(1);
 
   /*
    * Mechanism motor controller instances.
