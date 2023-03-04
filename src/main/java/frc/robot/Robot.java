@@ -41,8 +41,8 @@ public class RobotAuton extends TimedRobot {
   
 
   DifferentialDrive drive = new DifferentialDrive(leftMotors, rightMotors);
-  SlewRateLimiter m_speedLimiter = new SlewRateLimiter(2);
-  SlewRateLimiter m_rotLimiter = new SlewRateLimiter(1);
+  SlewRateLimiter m_speedLimiter = new SlewRateLimiter(3);
+  SlewRateLimiter m_rotLimiter = new SlewRateLimiter(3);
 
   /*
    * Mechanism motor controller instances.
@@ -106,12 +106,12 @@ public class RobotAuton extends TimedRobot {
   /**
    * Time to extend or retract arm in auto
    */
-  static final double ARM_EXTEND_TIME_S = 1.0;
+  static final double ARM_EXTEND_TIME_S = 1.5;
 
   /**
    * Time to throw game piece in auto
    */
-  static final double AUTO_THROW_TIME_S = 1;
+  static final double AUTO_THROW_TIME_S = 0.5;
 
   /**
    * Time to drive back in auto
@@ -128,8 +128,9 @@ public class RobotAuton extends TimedRobot {
    */
   @Override
   public void robotInit() {
-    m_chooser.setDefaultOption("Sides", kNothingAuto);
+    m_chooser.setDefaultOption("Left", kNothingAuto);
     m_chooser.addOption("Middle", kConeAuto);
+    m_chooser.addOption("Right", kCubeAuto);
     SmartDashboard.putData("Auto choices", m_chooser);
 
     /*
@@ -225,9 +226,6 @@ public class RobotAuton extends TimedRobot {
 
   @Override
   public void autonomousInit() {
-
-  
-
     driveLeftSpark.setIdleMode(IdleMode.kBrake);
     driveLeftSpark2.setIdleMode(IdleMode.kBrake);
     driveRightSpark.setIdleMode(IdleMode.kBrake);
@@ -247,13 +245,35 @@ public class RobotAuton extends TimedRobot {
   static final double INTAKE_OUTPUT_POWER = 1.0;
   static final double INTAKE_HOLD_POWER = 0.07;
 
+  static double AUTO_BACK_TIME = 0.0;
+  static double AUTO_WAIT_TIME = 0.0;
+  static double SCORE_TIME = 1;
+
+
   @Override
-  public void autonomousPeriodic() {
+  public void autonomousPeriodic() { // If it is middle auton
     if (m_autoSelected == kConeAuto) {
+        System.out.println("Middle");
       AUTO_DRIVE_TIME = 3.0;
-      return;
+      AUTO_BACK_TIME = 2.0;
+      AUTO_WAIT_TIME = 1.0;
+    }
+    if (m_autoSelected == kNothingAuto) {
+        System.out.println("Left"); // If it is left auton
+        AUTO_DRIVE_TIME = 3.0; 
+        AUTO_BACK_TIME = 0.0;
+        AUTO_WAIT_TIME = 0.0;
+    }
+    if (m_autoSelected == kCubeAuto) {
+        System.out.println("Right"); // If it is right auton
+        AUTO_DRIVE_TIME = 0.0;
+        AUTO_BACK_TIME = 0.0;
+        AUTO_WAIT_TIME = 0.0;
     }
 
+    System.out.println(AUTO_DRIVE_TIME);
+    System.out.println(AUTO_WAIT_TIME);
+    System.out.println(AUTO_BACK_TIME);
 
 
     double timeElapsed = Timer.getFPGATimestamp() - autonomousStartTime;
@@ -277,27 +297,49 @@ public class RobotAuton extends TimedRobot {
    * 
    */
     // extend arm out for two seconds
+    System.out.println(timeElapsed);
     if (timeElapsed < ARM_EXTEND_TIME_S) {
+        System.out.println(true);
       setArmMotor(-ARM_OUTPUT_POWER);
-      setIntakeMotor(0.0, INTAKE_CURRENT_LIMIT_A);
+      setIntakeMotor(-20.0, INTAKE_HOLD_CURRENT_LIMIT_A);
       setDriveMotors(0.0, 0.0);
     // stop moving arm
     // if time is less that time it takes for arm to extend + time it takes to throw piece
     // use the intake
-    } else if (timeElapsed < ARM_EXTEND_TIME_S + AUTO_THROW_TIME_S) {
+    } else if (timeElapsed < ARM_EXTEND_TIME_S + SCORE_TIME) {
+        setArmMotor(0.0);
+        setIntakeMotor(-20.0, INTAKE_HOLD_CURRENT_LIMIT_A);
+        setDriveMotors(-AUTO_DRIVE_SPEED / 4, 0.0);
+    } else if (timeElapsed < ARM_EXTEND_TIME_S  + SCORE_TIME + AUTO_THROW_TIME_S) {
       setArmMotor(0.0);
       setIntakeMotor(20.0, INTAKE_CURRENT_LIMIT_A);
       setDriveMotors(0.0, 0.0);
       //bring arm down
-    } else if (timeElapsed < ARM_EXTEND_TIME_S + AUTO_THROW_TIME_S + ARM_EXTEND_TIME_S) {
+    } else if (timeElapsed < ARM_EXTEND_TIME_S + SCORE_TIME + SCORE_TIME + AUTO_THROW_TIME_S) {
+        setArmMotor(0.0);
+        setIntakeMotor(-20.0, INTAKE_HOLD_CURRENT_LIMIT_A);
+        setDriveMotors(AUTO_DRIVE_SPEED / 4, 0.0);
+    } else if (timeElapsed < ARM_EXTEND_TIME_S + SCORE_TIME + SCORE_TIME + AUTO_THROW_TIME_S + ARM_EXTEND_TIME_S) {
       setArmMotor(ARM_OUTPUT_POWER); // bring down arm
       setIntakeMotor(0.0, INTAKE_CURRENT_LIMIT_A);
       setDriveMotors(0.0, 0.0);
       //drive backward
-    } else if (timeElapsed < ARM_EXTEND_TIME_S + AUTO_THROW_TIME_S + ARM_EXTEND_TIME_S + AUTO_DRIVE_TIME) {
+    } else if (timeElapsed < ARM_EXTEND_TIME_S + SCORE_TIME + SCORE_TIME + AUTO_THROW_TIME_S + ARM_EXTEND_TIME_S + AUTO_DRIVE_TIME) {
       setArmMotor(0.0);
       setIntakeMotor(0.0, INTAKE_CURRENT_LIMIT_A);
       setDriveMotors(AUTO_DRIVE_SPEED, 0.0); 
+    } else if (timeElapsed < ARM_EXTEND_TIME_S + SCORE_TIME + SCORE_TIME + AUTO_THROW_TIME_S + ARM_EXTEND_TIME_S + AUTO_DRIVE_TIME + AUTO_BACK_TIME) {
+      setArmMotor(0.0);
+      setIntakeMotor(0.0, INTAKE_CURRENT_LIMIT_A);
+      setDriveMotors(AUTO_DRIVE_SPEED, 0.0); 
+    } else if (timeElapsed < ARM_EXTEND_TIME_S+ SCORE_TIME  + SCORE_TIME + AUTO_THROW_TIME_S + ARM_EXTEND_TIME_S + AUTO_DRIVE_TIME + AUTO_BACK_TIME + AUTO_WAIT_TIME) {
+        setArmMotor(0.0);
+        setIntakeMotor(0.0, INTAKE_CURRENT_LIMIT_A);
+        setDriveMotors(0.0, 0.0); 
+    } else if (timeElapsed < ARM_EXTEND_TIME_S  + SCORE_TIME + SCORE_TIME + AUTO_THROW_TIME_S + ARM_EXTEND_TIME_S + AUTO_DRIVE_TIME + AUTO_BACK_TIME + AUTO_WAIT_TIME + AUTO_BACK_TIME) {
+        setArmMotor(0.0);
+        setIntakeMotor(0.0, INTAKE_CURRENT_LIMIT_A);
+        setDriveMotors(-AUTO_DRIVE_SPEED, 0.0); 
     } else {
       setArmMotor(0.0);
       setIntakeMotor(0.0, INTAKE_CURRENT_LIMIT_A);
@@ -386,10 +428,10 @@ public class RobotAuton extends TimedRobot {
     //   setDriveMotors(-previous_y*.3,-j.getRawAxis(0)*.3);
     // }
     if (j.getRawAxis(3) != 0) {
-        drive.setMaxOutput(0.7);
+        drive.setMaxOutput(1);
     } else {
 
-        drive.setMaxOutput(0.3);
+        drive.setMaxOutput(0.5);
     }
      var xSpeed = m_speedLimiter.calculate(-j.getRawAxis(1));
     final var rot = m_rotLimiter.calculate(-j.getRawAxis(4));
