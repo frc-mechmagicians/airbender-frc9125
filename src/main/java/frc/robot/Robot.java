@@ -13,7 +13,7 @@ import edu.wpi.first.wpilibj.motorcontrol.MotorControllerGroup;
 import edu.wpi.first.wpilibj.smartdashboard.SendableChooser;
 import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
 
-public class RobotAuton extends TimedRobot {
+public class Robot extends TimedRobot {
   /*
    * Autonomous selection options.
    */
@@ -42,7 +42,7 @@ public class RobotAuton extends TimedRobot {
 
   DifferentialDrive drive = new DifferentialDrive(leftMotors, rightMotors);
   SlewRateLimiter m_speedLimiter = new SlewRateLimiter(3);
-  SlewRateLimiter m_rotLimiter = new SlewRateLimiter(3);
+  SlewRateLimiter m_rotLimiter = new SlewRateLimiter(1);
 
   /*
    * Mechanism motor controller instances.
@@ -66,8 +66,8 @@ public class RobotAuton extends TimedRobot {
    * mode (switch set to X on the bottom) or a different controller
    * that you feel is more comfortable.
    */
-  Joystick j = new Joystick(1);
-  Joystick j1 = new Joystick(0);
+  Joystick j = new Joystick(0);
+  Joystick j1 = new Joystick(1);
 
   /*
    * Magic numbers. Use these to adjust settings.
@@ -434,11 +434,11 @@ public class RobotAuton extends TimedRobot {
         drive.setMaxOutput(0.5);
     }
      var xSpeed = m_speedLimiter.calculate(-j.getRawAxis(1));
-    final var rot = m_rotLimiter.calculate(-j.getRawAxis(4));
+     final var rot = -j.getRawAxis(4);
+    //final var rot = m_rotLimiter.calculate(-j.getRawAxis(4));
     if (rot != 0 && xSpeed == 0) {
         xSpeed = 0.01;
     }
-    
     drive.curvatureDrive(xSpeed, rot, j.getRawButton(6));
   }
 }
