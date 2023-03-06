@@ -1,10 +1,11 @@
 package frc.robot;
-
 import com.revrobotics.CANSparkMax;
 import com.revrobotics.CANSparkMax.IdleMode;
 import com.revrobotics.CANSparkMaxLowLevel.MotorType;
 
+
 import edu.wpi.first.math.filter.SlewRateLimiter;
+import edu.wpi.first.wpilibj.ADIS16448_IMU;
 import edu.wpi.first.wpilibj.Joystick;
 import edu.wpi.first.wpilibj.TimedRobot;
 import edu.wpi.first.wpilibj.Timer;
@@ -12,7 +13,7 @@ import edu.wpi.first.wpilibj.drive.DifferentialDrive;
 import edu.wpi.first.wpilibj.motorcontrol.MotorControllerGroup;
 import edu.wpi.first.wpilibj.smartdashboard.SendableChooser;
 import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
-
+import edu.wpi.first.cameraserver.CameraServer;
 public class Robot extends TimedRobot {
   /*
    * Autonomous selection options.
@@ -38,11 +39,11 @@ public class Robot extends TimedRobot {
   MotorControllerGroup leftMotors = new MotorControllerGroup(driveLeftSpark, driveLeftSpark2);
   MotorControllerGroup rightMotors = new MotorControllerGroup(driveRightSpark, driveRightSpark2);
 
-  
+  ADIS16448_IMU gyro = new ADIS16448_IMU();
 
   DifferentialDrive drive = new DifferentialDrive(leftMotors, rightMotors);
   SlewRateLimiter m_speedLimiter = new SlewRateLimiter(3);
-  SlewRateLimiter m_rotLimiter = new SlewRateLimiter(1);
+  SlewRateLimiter m_rotLimiter = new SlewRateLimiter(3);
 
   /*
    * Mechanism motor controller instances.
@@ -66,8 +67,8 @@ public class Robot extends TimedRobot {
    * mode (switch set to X on the bottom) or a different controller
    * that you feel is more comfortable.
    */
-  Joystick j = new Joystick(0);
-  Joystick j1 = new Joystick(1);
+  Joystick j = new Joystick(1);
+  Joystick j1 = new Joystick(0);
 
   /*
    * Magic numbers. Use these to adjust settings.
@@ -126,13 +127,14 @@ public class Robot extends TimedRobot {
   /**
    * This method is run once when the robot is first started up.
    */
+  
   @Override
   public void robotInit() {
     m_chooser.setDefaultOption("Left", kNothingAuto);
     m_chooser.addOption("Middle", kConeAuto);
     m_chooser.addOption("Right", kCubeAuto);
     SmartDashboard.putData("Auto choices", m_chooser);
-
+    CameraServer.startAutomaticCapture(); 
     /*
      * You will need to change some of these from false to true.
      * 
@@ -224,12 +226,17 @@ public class Robot extends TimedRobot {
   double autonomousStartTime;
   double autonomousIntakePower;
 
+  static double gyro_init_angle = 0.0;
+
   @Override
   public void autonomousInit() {
     driveLeftSpark.setIdleMode(IdleMode.kBrake);
     driveLeftSpark2.setIdleMode(IdleMode.kBrake);
     driveRightSpark.setIdleMode(IdleMode.kBrake);
     driveRightSpark2.setIdleMode(IdleMode.kBrake);;
+
+    gyro_init_angle = gyro.getGyroAngleZ();
+    SmartDashboard.putNumber("Initial Angle", gyro_init_angle);
 
     m_autoSelected = m_chooser.getSelected();
     System.out.println("Auto selected: " + m_autoSelected);
@@ -248,24 +255,24 @@ public class Robot extends TimedRobot {
   static double AUTO_BACK_TIME = 0.0;
   static double AUTO_WAIT_TIME = 0.0;
   static double SCORE_TIME = 1;
+  static boolean middle = false;
 
 
   @Override
   public void autonomousPeriodic() { // If it is middle auton
+
     if (m_autoSelected == kConeAuto) {
-        System.out.println("Middle");
       AUTO_DRIVE_TIME = 3.0;
       AUTO_BACK_TIME = 2.0;
       AUTO_WAIT_TIME = 1.0;
+      middle = true;
     }
-    if (m_autoSelected == kNothingAuto) {
-        System.out.println("Left"); // If it is left auton
+    if (m_autoSelected == kNothingAuto) { // Left
         AUTO_DRIVE_TIME = 3.0; 
         AUTO_BACK_TIME = 0.0;
         AUTO_WAIT_TIME = 0.0;
     }
-    if (m_autoSelected == kCubeAuto) {
-        System.out.println("Right"); // If it is right auton
+    if (m_autoSelected == kCubeAuto) { // Right
         AUTO_DRIVE_TIME = 0.0;
         AUTO_BACK_TIME = 0.0;
         AUTO_WAIT_TIME = 0.0;
@@ -327,23 +334,20 @@ public class Robot extends TimedRobot {
     } else if (timeElapsed < ARM_EXTEND_TIME_S + SCORE_TIME + SCORE_TIME + AUTO_THROW_TIME_S + ARM_EXTEND_TIME_S + AUTO_DRIVE_TIME) {
       setArmMotor(0.0);
       setIntakeMotor(0.0, INTAKE_CURRENT_LIMIT_A);
-      setDriveMotors(AUTO_DRIVE_SPEED, 0.0); 
-    } else if (timeElapsed < ARM_EXTEND_TIME_S + SCORE_TIME + SCORE_TIME + AUTO_THROW_TIME_S + ARM_EXTEND_TIME_S + AUTO_DRIVE_TIME + AUTO_BACK_TIME) {
-      setArmMotor(0.0);
-      setIntakeMotor(0.0, INTAKE_CURRENT_LIMIT_A);
-      setDriveMotors(AUTO_DRIVE_SPEED, 0.0); 
-    } else if (timeElapsed < ARM_EXTEND_TIME_S+ SCORE_TIME  + SCORE_TIME + AUTO_THROW_TIME_S + ARM_EXTEND_TIME_S + AUTO_DRIVE_TIME + AUTO_BACK_TIME + AUTO_WAIT_TIME) {
-        setArmMotor(0.0);
-        setIntakeMotor(0.0, INTAKE_CURRENT_LIMIT_A);
-        setDriveMotors(0.0, 0.0); 
-    } else if (timeElapsed < ARM_EXTEND_TIME_S  + SCORE_TIME + SCORE_TIME + AUTO_THROW_TIME_S + ARM_EXTEND_TIME_S + AUTO_DRIVE_TIME + AUTO_BACK_TIME + AUTO_WAIT_TIME + AUTO_BACK_TIME) {
-        setArmMotor(0.0);
-        setIntakeMotor(0.0, INTAKE_CURRENT_LIMIT_A);
-        setDriveMotors(-AUTO_DRIVE_SPEED, 0.0); 
+      setDriveMotors(AUTO_DRIVE_SPEED, 0.0);  
     } else {
-      setArmMotor(0.0);
-      setIntakeMotor(0.0, INTAKE_CURRENT_LIMIT_A);
-      setDriveMotors(0.0, 0.0);
+      if (!middle) {
+        setArmMotor(0.0);
+        setIntakeMotor(0.0, INTAKE_CURRENT_LIMIT_A);
+        setDriveMotors(0.0, 0.0);
+      } else {
+        SmartDashboard.putNumber("Gyro Angle", gyro.getGyroAngleZ());
+        if (gyro_init_angle < gyro.getGyroAngleZ()) {
+          setDriveMotors(AUTO_DRIVE_SPEED/5, 0.0);
+        } else {
+          setDriveMotors(-AUTO_DRIVE_SPEED/5, 0.0);
+        }
+      }
     }
   }
 
@@ -434,11 +438,11 @@ public class Robot extends TimedRobot {
         drive.setMaxOutput(0.5);
     }
      var xSpeed = m_speedLimiter.calculate(-j.getRawAxis(1));
-     final var rot = -j.getRawAxis(4);
-    //final var rot = m_rotLimiter.calculate(-j.getRawAxis(4));
+    final var rot = m_rotLimiter.calculate(-j.getRawAxis(4));
     if (rot != 0 && xSpeed == 0) {
         xSpeed = 0.01;
     }
+    
     drive.curvatureDrive(xSpeed, rot, j.getRawButton(6));
   }
 }
