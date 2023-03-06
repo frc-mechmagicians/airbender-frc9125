@@ -17,7 +17,7 @@ import edu.wpi.first.wpilibj.motorcontrol.MotorControllerGroup;
 import edu.wpi.first.wpilibj.motorcontrol.PWMSparkMax;
 
 /** Represents a differential drive style drivetrain. */
-public class Drivetrain {
+public class DriveTrain {
   public static final double kMaxSpeed = 3.0; // meters per second
   public static final double kMaxAngularSpeed = 2 * Math.PI; // one rotation per second
 
@@ -55,7 +55,7 @@ public class Drivetrain {
    * Constructs a differential drive object. Sets the encoder distance per pulse and resets the
    * gyro.
    */
-  public Drivetrain() {
+  public DriveTrain() {
     m_gyro.reset();
 
     // We need to invert one side of the drivetrain so that positive voltages
@@ -72,7 +72,7 @@ public class Drivetrain {
     m_leftEncoder.reset();
     m_rightEncoder.reset();
 
-    m_odometry = new DifferentialDriveOdometry(m_gyro.getRotation2d());
+    m_odometry = new DifferentialDriveOdometry(m_gyro.getRotation2d(), 0, 0);
   }
 
   /**
