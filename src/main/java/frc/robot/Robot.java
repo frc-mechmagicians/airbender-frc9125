@@ -1,11 +1,12 @@
 package frc.robot;
+
 import com.revrobotics.CANSparkMax;
 import com.revrobotics.CANSparkMax.IdleMode;
 import com.revrobotics.CANSparkMaxLowLevel.MotorType;
 
-
+import edu.wpi.first.math.controller.PIDController;
 import edu.wpi.first.math.filter.SlewRateLimiter;
-import edu.wpi.first.wpilibj.ADIS16448_IMU;
+import edu.wpi.first.wpilibj.ADIS16470_IMU;
 import edu.wpi.first.wpilibj.Joystick;
 import edu.wpi.first.wpilibj.TimedRobot;
 import edu.wpi.first.wpilibj.Timer;
@@ -14,6 +15,7 @@ import edu.wpi.first.wpilibj.motorcontrol.MotorControllerGroup;
 import edu.wpi.first.wpilibj.smartdashboard.SendableChooser;
 import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
 import edu.wpi.first.cameraserver.CameraServer;
+
 public class Robot extends TimedRobot {
   /*
    * Autonomous selection options.
@@ -24,6 +26,7 @@ public class Robot extends TimedRobot {
   private String m_autoSelected;
   private final SendableChooser<String> m_chooser = new SendableChooser<>();
 
+  private final PIDController npid = new PIDController(0.29/16, 0, 0.002);
   /*
    * Drive motor controller instances.
    * 
@@ -39,7 +42,7 @@ public class Robot extends TimedRobot {
   MotorControllerGroup leftMotors = new MotorControllerGroup(driveLeftSpark, driveLeftSpark2);
   MotorControllerGroup rightMotors = new MotorControllerGroup(driveRightSpark, driveRightSpark2);
 
-  ADIS16448_IMU gyro = new ADIS16448_IMU();
+  ADIS16470_IMU gyro = new ADIS16470_IMU();
 
   DifferentialDrive drive = new DifferentialDrive(leftMotors, rightMotors);
   SlewRateLimiter m_speedLimiter = new SlewRateLimiter(3);
@@ -134,6 +137,7 @@ public class Robot extends TimedRobot {
     m_chooser.addOption("Middle", kConeAuto);
     m_chooser.addOption("Right", kCubeAuto);
     SmartDashboard.putData("Auto choices", m_chooser);
+    
     CameraServer.startAutomaticCapture(); 
     /*
      * You will need to change some of these from false to true.
@@ -235,7 +239,7 @@ public class Robot extends TimedRobot {
     driveRightSpark.setIdleMode(IdleMode.kBrake);
     driveRightSpark2.setIdleMode(IdleMode.kBrake);;
 
-    gyro_init_angle = gyro.getGyroAngleZ();
+    gyro_init_angle = gyro.getYComplementaryAngle();
     SmartDashboard.putNumber("Initial Angle", gyro_init_angle);
 
     m_autoSelected = m_chooser.getSelected();
@@ -286,7 +290,7 @@ public class Robot extends TimedRobot {
     double timeElapsed = Timer.getFPGATimestamp() - autonomousStartTime;
 
 
-	// move forward
+  // move forward
   // raise arm fully
   // turn intake motor drop
   // pull arm back
@@ -341,13 +345,15 @@ public class Robot extends TimedRobot {
         setIntakeMotor(0.0, INTAKE_CURRENT_LIMIT_A);
         setDriveMotors(0.0, 0.0);
       } else {
-        SmartDashboard.putNumber("Gyro Angle", gyro.getGyroAngleZ());
-        if (gyro_init_angle < gyro.getGyroAngleZ()) {
-          setDriveMotors(AUTO_DRIVE_SPEED/5, 0.0);
+        SmartDashboard.putNumber("Gyro Angle", gyro.getYComplementaryAngle());
+        double delta = gyro_init_angle - gyro.getYComplementaryAngle();
+
+        if (Math.abs(delta) < 2) {
+          setDriveMotors(0, 0.0);
         } else {
-          setDriveMotors(-AUTO_DRIVE_SPEED/5, 0.0);
-        }
-      }
+          setDriveMotors((delta * 0.05/17), 0.0);
+        }    
+       }
     }
   }
 
@@ -363,10 +369,17 @@ public class Robot extends TimedRobot {
 
   @Override
   public void teleopInit() {
+    npid.setTolerance(3);
     driveLeftSpark.setIdleMode(IdleMode.kCoast);
     driveLeftSpark2.setIdleMode(IdleMode.kCoast);
     driveRightSpark.setIdleMode(IdleMode.kCoast);
     driveRightSpark2.setIdleMode(IdleMode.kCoast);
+
+    
+    gyro_init_angle = -1;
+    // gyro.getYComplementaryAngle();
+    SmartDashboard.putNumber("Initial Angle", gyro_init_angle);
+
 
     lastGamePiece = NOTHING;
 
@@ -375,9 +388,23 @@ public class Robot extends TimedRobot {
 
   @Override
   public void teleopPeriodic() {
+
+    SmartDashboard.putNumber("Gyro Angle", gyro.getYComplementaryAngle());
+    //double delta = gyro_init_angle - gyro.getYComplementaryAngle();
+
+    /*if (Math.abs(delta) < 2) {
+      drive.arcadeDrive(0, 0.0);
+      SmartDashboard.putNumber("Speed", 0);
+    } else {*/
+      double speed = npid.calculate(gyro.getYComplementaryAngle(),gyro_init_angle);
+      drive.arcadeDrive(speed, 0.0);
+      SmartDashboard.putNumber("Speed", speed);
+//    }    
+    if (true) return;
     if(j1.getRawButton(8)){
       setArmMotor(.3);
     }
+    
     setArmMotor(j1.getRawAxis(1)*.3);
     double intakePower;
     int intakeAmps;
