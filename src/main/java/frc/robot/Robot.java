@@ -1,5 +1,7 @@
 package frc.robot;
 
+import java.sql.Driver;
+
 import com.revrobotics.CANSparkMax;
 import com.revrobotics.CANSparkMax.IdleMode;
 import com.revrobotics.CANSparkMaxLowLevel.MotorType;
@@ -8,8 +10,10 @@ import edu.wpi.first.math.controller.PIDController;
 import edu.wpi.first.math.filter.SlewRateLimiter;
 import edu.wpi.first.wpilibj.ADIS16470_IMU;
 import edu.wpi.first.wpilibj.Joystick;
+import edu.wpi.first.wpilibj.PS4Controller;
 import edu.wpi.first.wpilibj.TimedRobot;
 import edu.wpi.first.wpilibj.Timer;
+import edu.wpi.first.wpilibj.XboxController;
 import edu.wpi.first.wpilibj.drive.DifferentialDrive;
 import edu.wpi.first.wpilibj.motorcontrol.MotorControllerGroup;
 import edu.wpi.first.wpilibj.smartdashboard.SendableChooser;
@@ -26,7 +30,7 @@ public class Robot extends TimedRobot {
   private String m_autoSelected;
   private final SendableChooser<String> m_chooser = new SendableChooser<>();
 
-  private final PIDController npid = new PIDController(0.29/16, 0, 0.002);
+  private final PIDController npid = new PIDController(0.31/15, 0, 0.001);
   /*
    * Drive motor controller instances.
    * 
@@ -70,8 +74,8 @@ public class Robot extends TimedRobot {
    * mode (switch set to X on the bottom) or a different controller
    * that you feel is more comfortable.
    */
-  Joystick j = new Joystick(1);
-  Joystick j1 = new Joystick(0);
+  XboxController driverJoystick = new XboxController(0);
+  PS4Controller operatorJoystick = new PS4Controller(1);
 
   /*
    * Magic numbers. Use these to adjust settings.
@@ -364,112 +368,94 @@ public class Robot extends TimedRobot {
   static final int CUBE = 2;
   static final int NOTHING = 3;
   int lastGamePiece;
+  double intakePower=0;
+  int intakeAmps=0;
 
-  double previous_y = j.getRawAxis(1);
 
   @Override
   public void teleopInit() {
-    npid.setTolerance(3);
+    npid.setTolerance(2);
     driveLeftSpark.setIdleMode(IdleMode.kCoast);
     driveLeftSpark2.setIdleMode(IdleMode.kCoast);
     driveRightSpark.setIdleMode(IdleMode.kCoast);
     driveRightSpark2.setIdleMode(IdleMode.kCoast);
 
-    
-    gyro_init_angle = -1;
-    // gyro.getYComplementaryAngle();
+    System.out.println("test");
+    gyro_init_angle = gyro.getYComplementaryAngle();
     SmartDashboard.putNumber("Initial Angle", gyro_init_angle);
 
 
     lastGamePiece = NOTHING;
 
-    previous_y = j.getRawAxis(1);
   }
 
   @Override
   public void teleopPeriodic() {
-
-    SmartDashboard.putNumber("Gyro Angle", gyro.getYComplementaryAngle());
-    //double delta = gyro_init_angle - gyro.getYComplementaryAngle();
-
-    /*if (Math.abs(delta) < 2) {
-      drive.arcadeDrive(0, 0.0);
-      SmartDashboard.putNumber("Speed", 0);
-    } else {*/
-      double speed = npid.calculate(gyro.getYComplementaryAngle(),gyro_init_angle);
-      drive.arcadeDrive(speed, 0.0);
-      SmartDashboard.putNumber("Speed", speed);
-//    }    
-    if (true) return;
-    if(j1.getRawButton(8)){
-      setArmMotor(.3);
+    if(operatorJoystick.getLeftY()==0){
+      setArmMotor(-.05);
+    }else{
+      setArmMotor(operatorJoystick.getLeftY()*ARM_OUTPUT_POWER);
     }
-    
-    setArmMotor(j1.getRawAxis(1)*.3);
-    double intakePower;
-    int intakeAmps;
-    if (j1.getRawButton(3) || j1.getRawButton(6)) {
-      // cube in or cone out
-      intakePower = INTAKE_OUTPUT_POWER;
+
+    if (operatorJoystick.getCircleButtonPressed()) {
+      // cube in
+      intakePower = INTAKE_OUTPUT_POWER/2;
       intakeAmps = INTAKE_CURRENT_LIMIT_A;
       lastGamePiece = CUBE;
-    } else if (j1.getRawButton(5) || j1.getRawButton(4)) {
-      // cone in or cube out
-      intakePower = -INTAKE_OUTPUT_POWER;
+      System.out.println("cross");
+    } else if(operatorJoystick.getCircleButtonReleased()){
+      intakePower = 0;
+      intakeAmps = 0;
+    }else if (operatorJoystick.getTriangleButtonPressed()) {
+      // cone in
+      intakePower =-INTAKE_OUTPUT_POWER;
       intakeAmps = INTAKE_CURRENT_LIMIT_A;
       lastGamePiece = CONE;
-    } else if (lastGamePiece == CUBE) {
-      intakePower = INTAKE_HOLD_POWER;
-      intakeAmps = INTAKE_HOLD_CURRENT_LIMIT_A;
-    } else if (lastGamePiece == CONE) {
+      System.out.println("triangle");
+    } else if(operatorJoystick.getTriangleButtonReleased()){
       intakePower = -INTAKE_HOLD_POWER;
       intakeAmps = INTAKE_HOLD_CURRENT_LIMIT_A;
-    } else {
-      intakePower = 0.0;
-      intakeAmps = 0;
+    } else if(operatorJoystick.getSquareButtonPressed()){
+      if(lastGamePiece==CUBE){
+        intakePower =-INTAKE_OUTPUT_POWER/2;
+        intakeAmps = INTAKE_CURRENT_LIMIT_A;
+      }else if(lastGamePiece==CONE){
+        intakePower =INTAKE_OUTPUT_POWER/2;
+      intakeAmps = INTAKE_CURRENT_LIMIT_A;
+      }
+      System.out.println("circle");
+      lastGamePiece=NOTHING;
+    }else if(operatorJoystick.getSquareButtonReleased()){
+      intakeAmps=0;
+      intakePower=0;
     }
+   
+    
     setIntakeMotor(intakePower, intakeAmps);
 
-    
-    /* 
-    if(j.getRawButton(3)){
-      setIntakeMotor(1, 20);
+    if(driverJoystick.getBButton()){
+      SmartDashboard.putNumber("Gyro Angle", gyro.getYComplementaryAngle());
+        double speed = npid.calculate(gyro.getYComplementaryAngle(),gyro_init_angle);
+        drive.curvatureDrive(speed, 0, true);
+        SmartDashboard.putNumber("Speed", speed);
     }
-    if(j.getRawButton(4)){
-      setIntakeMotor(-1, 20);
-    }
-    
-    */
-
-    /*
-     * Negative signs here because the values from the analog sticks are backwards
-     * from what we want. Forward returns a negative when we want it positive.
-     */
-    double axis = 1;
-    // SmartDashboard.putNumber("Previous", previous_y);
-    // if (j.getRawAxis(1) > 0.25) {
-    //   setDriveMotors(-j.getRawAxis(1)*.3, -j.getRawAxis(0)*.3);
-    //   previous_y = j.getRawAxis(1);    
-    // }
-    // else {
-    //   previous_y = previous_y-0.03;
-    //   if (previous_y < 0) {
-    //     previous_y = 0;
-    //   }
-    //   setDriveMotors(-previous_y*.3,-j.getRawAxis(0)*.3);
-    // }
-    if (j.getRawAxis(3) != 0) {
+    else{
+      if(driverJoystick.getLeftTriggerAxis()!=0){
+        drive.setMaxOutput(.25);
+      } else if (driverJoystick.getRightTriggerAxis() != 0) {
         drive.setMaxOutput(1);
-    } else {
-
+      } else {
         drive.setMaxOutput(0.5);
-    }
-     var xSpeed = m_speedLimiter.calculate(-j.getRawAxis(1));
-    final var rot = m_rotLimiter.calculate(-j.getRawAxis(4));
+      }
+     var xSpeed = m_speedLimiter.calculate(-driverJoystick.getLeftY());
+    final var rot = m_rotLimiter.calculate(-driverJoystick.getRightX());
     if (rot != 0 && xSpeed == 0) {
         xSpeed = 0.01;
     }
     
-    drive.curvatureDrive(xSpeed, rot, j.getRawButton(6));
+    drive.curvatureDrive(xSpeed, rot, driverJoystick.getLeftBumper());
+
+    }
+    
   }
 }
