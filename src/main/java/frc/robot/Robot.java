@@ -125,7 +125,7 @@ public class Robot extends TimedRobot {
    */
   static final double AUTO_THROW_TIME_S = 0.25;
   static final double ARM_MIDDLE_POS = 18;
-  static final double ARM_END_POS = 32;
+  static final double ARM_END_POS = 30;
 
   /**
    * Time to drive back in auto
@@ -153,7 +153,7 @@ public class Robot extends TimedRobot {
     /*
      * You will need to change some of these from false to true.
      * 
-     * In the setDriveMotors method, comment out all but 1 of the 4 calls
+     * In the drive.curvatureDrive(0, timeElapsed, Encoder_Reset); method, comment out all but 1 of the 4 calls
      * to the set() methods. Push the joystick forward. Reverse the motor
      * if it is going the wrong way. Repeat for the other 3 motors.
      */
@@ -175,34 +175,9 @@ public class Robot extends TimedRobot {
     drive.setDeadband(0);
   }
 
-  /**
-   * Calculate and set the power to apply to the left and right
-   * drive motors.
-   * 
-   * @param forward Desired forward speed. Positive is forward.
-   * @param turn    Desired turning speed. Positive is counter clockwise from
-   *                above.
-   */
-  public void setDriveMotors(double forward, double turn) {
-    SmartDashboard.putNumber("drive forward power (%)", forward);
-    SmartDashboard.putNumber("drive turn power (%)", turn);
-
-    /*
-     * positive turn = counter clockwise, so the left side goes backwards
-     */
-    double left = forward - turn;
-    double right = forward + turn;
-
-    SmartDashboard.putNumber("drive left power (%)", left);
-    SmartDashboard.putNumber("drive right power (%)", right);
-
-    // see note above in robotInit about commenting these out one by one to set
-    // directions.
-    driveLeftSpark.set(left);
-    driveLeftSpark2.set(left);
-    driveRightSpark.set(right);
-    driveRightSpark2.set(right);
-  }
+ 
+ 
+  
 
   /**
    * Set the arm output power. Positive is out, negative is in.
@@ -213,6 +188,8 @@ public class Robot extends TimedRobot {
     if(percent>0){
       if(armEncoder.getPosition()<ARM_END_POS){
         arm.set(percent);
+      }else if(armEncoder.getPosition()<ARM_END_POS+6){
+        arm.set(.1);
       }else{
         arm.set(0);
       }
@@ -332,7 +309,7 @@ public class Robot extends TimedRobot {
       System.out.println(true);
       setArmMotor(-ARM_OUTPUT_POWER);
       setIntakeMotor(-INTAKE_OUTPUT_POWER, INTAKE_CURRENT_LIMIT_A);
-      setDriveMotors(0.0, 0.0);
+      drive.curvatureDrive(0.0, 0.0, false);
       // stop moving arm
       // if time is less that time it takes for arm to extend + time it takes to throw
       // piece
@@ -342,16 +319,16 @@ public class Robot extends TimedRobot {
       Encoder_Reset=true;
       setArmMotor(0.0);
       setIntakeMotor(-INTAKE_OUTPUT_POWER, INTAKE_CURRENT_LIMIT_A);
-      setDriveMotors(-AUTO_DRIVE_SPEED / 4, 0.0);
+      drive.curvatureDrive(-AUTO_DRIVE_SPEED / 4, 0.0,false);
     } else if (timeElapsed < ARM_EXTEND_TIME_S + SCORE_TIME + AUTO_THROW_TIME_S) {
       setArmMotor(0.0);
       setIntakeMotor(INTAKE_OUTPUT_POWER / 2, INTAKE_CURRENT_LIMIT_A);
-      setDriveMotors(0.0, 0.0);
+      drive.curvatureDrive(0.0, 0.0,false);
       // bring arm down
     } else if (timeElapsed < ARM_EXTEND_TIME_S + SCORE_TIME + SCORE_TIME + AUTO_THROW_TIME_S) {
       setArmMotor(0.0);
       setIntakeMotor(0, 0);
-      setDriveMotors(AUTO_DRIVE_SPEED / 4, 0.0);
+      drive.curvatureDrive(AUTO_DRIVE_SPEED / 4, 0.0,false);
     } else if (timeElapsed < ARM_EXTEND_TIME_S + SCORE_TIME + SCORE_TIME + AUTO_THROW_TIME_S + ARM_EXTEND_TIME_S) {
       
       setArmMotor(ARM_OUTPUT_POWER);
@@ -359,26 +336,26 @@ public class Robot extends TimedRobot {
       
        // bring down arm
       setIntakeMotor(0.0, INTAKE_CURRENT_LIMIT_A);
-      setDriveMotors(0.0, 0.0);
+      drive.curvatureDrive(0, 0, false);
       // drive backward
     } else if (timeElapsed < ARM_EXTEND_TIME_S + SCORE_TIME + SCORE_TIME + AUTO_THROW_TIME_S + ARM_EXTEND_TIME_S
         + AUTO_DRIVE_TIME) {
       setArmMotor(0.0);
       setIntakeMotor(0.0, INTAKE_CURRENT_LIMIT_A);
-      setDriveMotors(AUTO_DRIVE_SPEED, 0.0);
+      drive.curvatureDrive(AUTO_DRIVE_SPEED, 0.0,false);
     } else {
       if (!middle) {
         setArmMotor(0.0);
         setIntakeMotor(0.0, INTAKE_CURRENT_LIMIT_A);
-        setDriveMotors(0.0, 0.0);
+        drive.curvatureDrive(0.0, 0.0,false);
       } else {
         SmartDashboard.putNumber("Gyro Angle", gyro.getYComplementaryAngle());
         double delta = gyro_init_angle - gyro.getYComplementaryAngle();
 
         if (Math.abs(delta) < 2) {
-          setDriveMotors(0, 0.0);
+          drive.curvatureDrive(0, 0.0,false);
         } else {
-          setDriveMotors((delta * 0.05 / 15), 0.0);
+          drive.curvatureDrive((delta * 0.05 / 15), 0.0,false);
         }
       }
     }
