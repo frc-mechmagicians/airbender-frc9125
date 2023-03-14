@@ -1,21 +1,28 @@
 package frc.robot;
 
 import com.revrobotics.CANSparkMax;
+import com.revrobotics.RelativeEncoder;
 import com.revrobotics.CANSparkMax.IdleMode;
 import com.revrobotics.CANSparkMaxLowLevel.MotorType;
 
 import edu.wpi.first.math.controller.PIDController;
 import edu.wpi.first.math.filter.SlewRateLimiter;
 import edu.wpi.first.wpilibj.ADIS16470_IMU;
+import edu.wpi.first.wpilibj.Encoder;
+import edu.wpi.first.wpilibj.Joystick;
 import edu.wpi.first.wpilibj.PS4Controller;
 import edu.wpi.first.wpilibj.TimedRobot;
 import edu.wpi.first.wpilibj.Timer;
 import edu.wpi.first.wpilibj.XboxController;
 import edu.wpi.first.wpilibj.drive.DifferentialDrive;
+import edu.wpi.first.wpilibj.drive.RobotDriveBase;
 import edu.wpi.first.wpilibj.motorcontrol.MotorControllerGroup;
 import edu.wpi.first.wpilibj.smartdashboard.SendableChooser;
 import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
 import edu.wpi.first.cameraserver.CameraServer;
+import edu.wpi.first.cscore.UsbCamera;
+import edu.wpi.first.cscore.VideoMode.PixelFormat;
+
 
 public class Robot extends TimedRobot {
   /*
@@ -26,7 +33,6 @@ public class Robot extends TimedRobot {
   private static final String kCubeAuto = "cube";
   private String m_autoSelected;
   private final SendableChooser<String> m_chooser = new SendableChooser<>();
-
   private final PIDController npid = new PIDController(0.31 / 15, 0, 0.001);
   /*
    * Drive motor controller instances.
@@ -39,7 +45,7 @@ public class Robot extends TimedRobot {
   CANSparkMax driveRightSpark = new CANSparkMax(3, MotorType.kBrushless);
   CANSparkMax driveLeftSpark2 = new CANSparkMax(2, MotorType.kBrushless);
   CANSparkMax driveRightSpark2 = new CANSparkMax(4, MotorType.kBrushless);
-
+  
   MotorControllerGroup leftMotors = new MotorControllerGroup(driveLeftSpark, driveLeftSpark2);
   MotorControllerGroup rightMotors = new MotorControllerGroup(driveRightSpark, driveRightSpark2);
 
@@ -61,6 +67,8 @@ public class Robot extends TimedRobot {
    */
   CANSparkMax arm = new CANSparkMax(5, MotorType.kBrushless);
   CANSparkMax intake = new CANSparkMax(6, MotorType.kBrushless);
+  
+  public RelativeEncoder armEncoder = arm.getEncoder();
 
   /**
    * The starter code uses the most generic joystick class.
@@ -73,7 +81,6 @@ public class Robot extends TimedRobot {
    */
   XboxController driverJoystick = new XboxController(0);
   PS4Controller operatorJoystick = new PS4Controller(1);
-
   /*
    * Magic numbers. Use these to adjust settings.
    */
@@ -112,34 +119,37 @@ public class Robot extends TimedRobot {
    * Time to extend or retract arm in auto
    */
   static final double ARM_EXTEND_TIME_S = 1.5;
-
+  static double DROP_TIME_X=0;
   /**
    * Time to throw game piece in auto
    */
-  static final double AUTO_THROW_TIME_S = 0.5;
+  static final double AUTO_THROW_TIME_S = 0.25;
+  static final double ARM_MIDDLE_POS = 18;
+  static final double ARM_END_POS = 32;
 
   /**
    * Time to drive back in auto
    */
   static double AUTO_DRIVE_TIME = 3.0;
-
+  static boolean Encoder_Reset= false;
   /**
    * Speed to drive backwards in auto
    */
   static final double AUTO_DRIVE_SPEED = -0.25;
-
   /**
    * This method is run once when the robot is first started up.
    */
 
   @Override
   public void robotInit() {
+    armEncoder.setPosition(0);
     m_chooser.setDefaultOption("Left", kNothingAuto);
     m_chooser.addOption("Middle", kConeAuto);
     m_chooser.addOption("Right", kCubeAuto);
     SmartDashboard.putData("Auto choices", m_chooser);
-
-    CameraServer.startAutomaticCapture();
+    
+    CameraServer.startAutomaticCapture(0);
+    
     /*
      * You will need to change some of these from false to true.
      * 
@@ -162,6 +172,7 @@ public class Robot extends TimedRobot {
     arm.setSmartCurrentLimit(ARM_CURRENT_LIMIT_A);
     intake.setInverted(false);
     intake.setIdleMode(IdleMode.kBrake);
+    drive.setDeadband(0);
   }
 
   /**
@@ -199,7 +210,17 @@ public class Robot extends TimedRobot {
    * @param percent
    */
   public void setArmMotor(double percent) {
-    arm.set(percent);
+    if(percent>0){
+      if(armEncoder.getPosition()<ARM_END_POS){
+        arm.set(percent);
+      }else{
+        arm.set(0);
+      }
+    }else{
+      arm.set(percent);
+    }
+    
+    
     SmartDashboard.putNumber("arm power (%)", percent);
     SmartDashboard.putNumber("arm motor current (amps)", arm.getOutputCurrent());
     SmartDashboard.putNumber("arm motor temperature (C)", arm.getMotorTemperature());
@@ -226,6 +247,7 @@ public class Robot extends TimedRobot {
   @Override
   public void robotPeriodic() {
     SmartDashboard.putNumber("Time (seconds)", Timer.getFPGATimestamp());
+    SmartDashboard.putNumber("arm position",armEncoder.getPosition());
   }
 
   double autonomousStartTime;
@@ -239,7 +261,7 @@ public class Robot extends TimedRobot {
     driveLeftSpark2.setIdleMode(IdleMode.kBrake);
     driveRightSpark.setIdleMode(IdleMode.kBrake);
     driveRightSpark2.setIdleMode(IdleMode.kBrake);
-    ;
+    
 
     gyro_init_angle = gyro.getYComplementaryAngle();
     SmartDashboard.putNumber("Initial Angle", gyro_init_angle);
@@ -287,7 +309,6 @@ public class Robot extends TimedRobot {
     System.out.println(AUTO_BACK_TIME);
 
     double timeElapsed = Timer.getFPGATimestamp() - autonomousStartTime;
-
     // move forward
     // raise arm fully
     // turn intake motor drop
@@ -310,27 +331,33 @@ public class Robot extends TimedRobot {
     if (timeElapsed < ARM_EXTEND_TIME_S) {
       System.out.println(true);
       setArmMotor(-ARM_OUTPUT_POWER);
-      setIntakeMotor(-20.0, INTAKE_HOLD_CURRENT_LIMIT_A);
+      setIntakeMotor(-INTAKE_OUTPUT_POWER, INTAKE_CURRENT_LIMIT_A);
       setDriveMotors(0.0, 0.0);
       // stop moving arm
       // if time is less that time it takes for arm to extend + time it takes to throw
       // piece
       // use the intake
     } else if (timeElapsed < ARM_EXTEND_TIME_S + SCORE_TIME) {
+      armEncoder.setPosition(0);
+      Encoder_Reset=true;
       setArmMotor(0.0);
-      setIntakeMotor(-20.0, INTAKE_HOLD_CURRENT_LIMIT_A);
+      setIntakeMotor(-INTAKE_OUTPUT_POWER, INTAKE_CURRENT_LIMIT_A);
       setDriveMotors(-AUTO_DRIVE_SPEED / 4, 0.0);
     } else if (timeElapsed < ARM_EXTEND_TIME_S + SCORE_TIME + AUTO_THROW_TIME_S) {
       setArmMotor(0.0);
-      setIntakeMotor(20.0, INTAKE_CURRENT_LIMIT_A);
+      setIntakeMotor(INTAKE_OUTPUT_POWER / 2, INTAKE_CURRENT_LIMIT_A);
       setDriveMotors(0.0, 0.0);
       // bring arm down
     } else if (timeElapsed < ARM_EXTEND_TIME_S + SCORE_TIME + SCORE_TIME + AUTO_THROW_TIME_S) {
       setArmMotor(0.0);
-      setIntakeMotor(-20.0, INTAKE_HOLD_CURRENT_LIMIT_A);
+      setIntakeMotor(0, 0);
       setDriveMotors(AUTO_DRIVE_SPEED / 4, 0.0);
     } else if (timeElapsed < ARM_EXTEND_TIME_S + SCORE_TIME + SCORE_TIME + AUTO_THROW_TIME_S + ARM_EXTEND_TIME_S) {
-      setArmMotor(ARM_OUTPUT_POWER); // bring down arm
+      
+      setArmMotor(ARM_OUTPUT_POWER);
+        
+      
+       // bring down arm
       setIntakeMotor(0.0, INTAKE_CURRENT_LIMIT_A);
       setDriveMotors(0.0, 0.0);
       // drive backward
@@ -351,7 +378,7 @@ public class Robot extends TimedRobot {
         if (Math.abs(delta) < 2) {
           setDriveMotors(0, 0.0);
         } else {
-          setDriveMotors((delta * 0.05 / 17), 0.0);
+          setDriveMotors((delta * 0.05 / 15), 0.0);
         }
       }
     }
@@ -380,33 +407,54 @@ public class Robot extends TimedRobot {
     SmartDashboard.putNumber("Initial Angle", gyro_init_angle);
 
     lastGamePiece = NOTHING;
+    
 
   }
 
   @Override
   public void teleopPeriodic() {
-    if (operatorJoystick.getLeftY() == 0) {
+    double currTime=Timer.getFPGATimestamp();
+    if(currTime-DROP_TIME_X<3 && currTime-DROP_TIME_X>1){
+      setArmMotor(ARM_OUTPUT_POWER);
+    }
+    else if (operatorJoystick.getLeftY() == 0) {
       setArmMotor(-.05);
-    } else {
+    } 
+  else if(operatorJoystick.getCircleButton() || operatorJoystick.getTriangleButton()){
+    setArmMotor(-ARM_OUTPUT_POWER);
+  }
+  else {
       setArmMotor(operatorJoystick.getLeftY() * ARM_OUTPUT_POWER);
     }
 
     if (operatorJoystick.getCircleButtonPressed()) {
+      setArmMotor(-ARM_OUTPUT_POWER);
       // cube in
       intakePower = INTAKE_OUTPUT_POWER / 2;
       intakeAmps = INTAKE_CURRENT_LIMIT_A;
       lastGamePiece = CUBE;
       System.out.println("cross");
     } else if (operatorJoystick.getCircleButtonReleased()) {
+      if(Encoder_Reset==false){
+        armEncoder.setPosition(0);
+        Encoder_Reset=true;
+      }
+
       intakePower = 0;
       intakeAmps = 0;
     } else if (operatorJoystick.getTriangleButtonPressed()) {
       // cone in
+      setArmMotor(-ARM_OUTPUT_POWER);
       intakePower = -INTAKE_OUTPUT_POWER;
       intakeAmps = INTAKE_CURRENT_LIMIT_A;
       lastGamePiece = CONE;
       System.out.println("triangle");
     } else if (operatorJoystick.getTriangleButtonReleased()) {
+      if(Encoder_Reset==false){
+        armEncoder.setPosition(0);
+        Encoder_Reset=true;
+      }
+
       intakePower = -INTAKE_HOLD_POWER;
       intakeAmps = INTAKE_HOLD_CURRENT_LIMIT_A;
     } else if (operatorJoystick.getSquareButtonPressed()) {
@@ -418,15 +466,30 @@ public class Robot extends TimedRobot {
         intakeAmps = INTAKE_CURRENT_LIMIT_A;
       }
       System.out.println("circle");
-      lastGamePiece = NOTHING;
+  
     } else if (operatorJoystick.getSquareButtonReleased()) {
+      DROP_TIME_X = Timer.getFPGATimestamp();
       intakeAmps = 0;
       intakePower = 0;
-    }
+    }else if(operatorJoystick.getCrossButton()){
+      if(armEncoder.getPosition()>ARM_MIDDLE_POS+1){
+        setArmMotor(-ARM_OUTPUT_POWER);
+      }else if(armEncoder.getPosition()<ARM_MIDDLE_POS-1){
+        setArmMotor(ARM_OUTPUT_POWER);
+      }
+
+      }
+      
+    
+    
 
     setIntakeMotor(intakePower, intakeAmps);
+    if(DROP_TIME_X!=0 && Timer.getFPGATimestamp()-DROP_TIME_X<1){
+      drive.curvatureDrive(AUTO_DRIVE_SPEED / 4, 0,false);
+    }
 
-    if (driverJoystick.getBButton()) {
+    
+    else if (driverJoystick.getBButton()) {
       SmartDashboard.putNumber("Gyro Angle", gyro.getYComplementaryAngle());
       double speed = npid.calculate(gyro.getYComplementaryAngle(), gyro_init_angle);
       drive.curvatureDrive(speed, 0, true);
@@ -446,6 +509,9 @@ public class Robot extends TimedRobot {
       }
 
       drive.curvatureDrive(xSpeed, rot, driverJoystick.getLeftBumper());
+      
+      
     }
+   
   }
 }
