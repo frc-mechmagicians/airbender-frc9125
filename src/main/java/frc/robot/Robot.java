@@ -33,7 +33,47 @@ public class Robot extends TimedRobot {
   private static final String kRightAuto = "right";
   private String m_autoSelected;
   private final SendableChooser<String> m_chooser = new SendableChooser<>();
-  private final PIDController npid = new PIDController(0.31 / 15, 0, 0.001);
+
+
+  
+
+  // https://en.wikipedia.org/wiki/Ziegler%E2%80%93Nichols_method
+  static final double GYRO_CONTROLLED_MAX_OUTPUT = 0.30; // tune it (.25 to .5)
+  static final double GYRO_TU = 1.0;  // Oscilatoin period - Tune it (0.5 to 2)
+  static final double GYRO_KU = 1.0/15.0;  // ultimate gain at max angle 15
+  static final double GYRO_TOLERANCE = 2.0; // Tolerance angle 
+
+  // PI
+  // static final double GYRO_KP = 0.45*GYRO_KU;
+  // static final double GYRO_KI = 0.54*GYRO_KU/GYRO_TU;
+  // static final double GYRO_KD = 0;
+
+  // PD
+  //static final double GYRO_KP = 0.8*GYRO_KU;
+  //static final double GYRO_KI = 0;
+  //static final double GYRO_KD = 0.10*GYRO_KU*GYRO_TU;
+
+  // Classis PID
+  static final double GYRO_KP = 0.6*GYRO_KU;
+  static final double GYRO_KI = 1.2*GYRO_KU/GYRO_TU;
+  static final double GYRO_KD = 0.075*GYRO_KU*GYRO_TU;
+  
+  // Passen Integral Rule
+  //static final double GYRO_KP = 0.7*GYRO_KU;
+  //static final double GYRO_KI = 1.75*GYRO_KU/GYRO_TU;
+  //static final double GYRO_KD = 0.105*GYRO_KU*GYRO_TU
+
+  // Some vershoot
+  //static final double GYRO_KP = 0.33*GYRO_KU;
+  //static final double GYRO_KI = 0.66*GYRO_KU/GYRO_TU;
+  //static final double GYRO_KD = 0.11*GYRO_KU*GYRO_TU
+
+  // No overshoot
+  //static final double GYRO_KP = 0.2*GYRO_KU;
+  //static final double GYRO_KI = 0.4*GYRO_KU/GYRO_TU;
+  //static final double GYRO_KD = 0.066*GYRO_KU*GYRO_TU
+
+  private final PIDController npid = new PIDController(GYRO_KP, GYRO_KI, GYRO_KD);
   /*
    * Drive motor controller instances.
    * 
@@ -172,6 +212,11 @@ public class Robot extends TimedRobot {
     intake.setInverted(false);
     intake.setIdleMode(IdleMode.kBrake);
     drive.setDeadband(0);
+
+
+    npid.setTolerance(GYRO_TOLERANCE);
+    gyro_init_angle = gyro.getYComplementaryAngle();
+    SmartDashboard.putNumber("Gyro Initial Angle", gyro_init_angle);
   }
 
  
@@ -234,6 +279,12 @@ public class Robot extends TimedRobot {
   double autonomousIntakePower;
 
   static double gyro_init_angle = 0.0;
+  public void levelRobot() {
+    double speed = npid.calculate(gyro.getYComplementaryAngle(), gyro_init_angle);
+    drive.setMaxOutput(GYRO_CONTROLLED_MAX_OUTPUT);
+    drive.curvatureDrive(speed, 0, true);
+    SmartDashboard.putNumber("Gyro controllred Speed", speed);
+  }
 
   @Override
   public void autonomousInit() {
@@ -243,8 +294,6 @@ public class Robot extends TimedRobot {
     driveRightSpark2.setIdleMode(IdleMode.kBrake);
     motorEncoder.setPosition(0);
 
-    gyro_init_angle = gyro.getYComplementaryAngle();
-    SmartDashboard.putNumber("Initial Angle", gyro_init_angle);
 
     m_autoSelected = m_chooser.getSelected();
     System.out.println("Auto selected: " + m_autoSelected);
@@ -354,14 +403,7 @@ public class Robot extends TimedRobot {
           setIntakeMotor(0.0, INTAKE_CURRENT_LIMIT_A);
           drive.curvatureDrive(0.0, 0.0,false);
         } else {
-          SmartDashboard.putNumber("Gyro Angle", gyro.getYComplementaryAngle());
-          double delta = gyro_init_angle - gyro.getYComplementaryAngle();
-
-          if (Math.abs(delta) < 2) {
-            drive.curvatureDrive(0, 0.0,false);
-          } else {
-            drive.curvatureDrive((delta * 0.05 / 15), 0.0,false);
-          }
+          levelRobot();
         }
         break;
     }
@@ -380,19 +422,12 @@ public class Robot extends TimedRobot {
   @Override
   public void teleopInit() {
     motorEncoder.setPosition(0);
-    npid.setTolerance(2);
     driveLeftSpark.setIdleMode(IdleMode.kCoast);
     driveLeftSpark2.setIdleMode(IdleMode.kCoast);
     driveRightSpark.setIdleMode(IdleMode.kCoast);
     driveRightSpark2.setIdleMode(IdleMode.kCoast);
 
-    System.out.println("test");
-    gyro_init_angle = gyro.getYComplementaryAngle();
-    SmartDashboard.putNumber("Initial Angle", gyro_init_angle);
-
     lastGamePiece = NOTHING;
-    
-
   }
 
   @Override
