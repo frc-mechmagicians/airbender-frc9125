@@ -8,20 +8,17 @@ import com.revrobotics.CANSparkMaxLowLevel.MotorType;
 import edu.wpi.first.math.controller.PIDController;
 import edu.wpi.first.math.filter.SlewRateLimiter;
 import edu.wpi.first.wpilibj.ADIS16470_IMU;
-import edu.wpi.first.wpilibj.Encoder;
-import edu.wpi.first.wpilibj.Joystick;
+
 import edu.wpi.first.wpilibj.PS4Controller;
 import edu.wpi.first.wpilibj.TimedRobot;
 import edu.wpi.first.wpilibj.Timer;
 import edu.wpi.first.wpilibj.XboxController;
 import edu.wpi.first.wpilibj.drive.DifferentialDrive;
-import edu.wpi.first.wpilibj.drive.RobotDriveBase;
 import edu.wpi.first.wpilibj.motorcontrol.MotorControllerGroup;
 import edu.wpi.first.wpilibj.smartdashboard.SendableChooser;
 import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
 import edu.wpi.first.cameraserver.CameraServer;
-import edu.wpi.first.cscore.UsbCamera;
-import edu.wpi.first.cscore.VideoMode.PixelFormat;
+
 
 
 public class Robot extends TimedRobot {
@@ -138,22 +135,22 @@ public class Robot extends TimedRobot {
   /**
    * How many amps the intake can use while picking up
    */
-  // static final int INTAKE_CURRENT_LIMIT_A = 25;
+  static final int INTAKE_CURRENT_LIMIT_A = 30;
 
   /**
    * How many amps the intake can use while holding
    */
-  // static final int INTAKE_HOLD_CURRENT_LIMIT_A = 5;
+  static final int INTAKE_HOLD_CURRENT_LIMIT_A = 5;
 
   /**
    * Percent output for intaking
    */
-  // static final double INTAKE_OUTPUT_POWER = 1.0;
+  static final double INTAKE_OUTPUT_POWER = 1.0;
 
   /**
    * Percent output for holding
    */
-  // static final double INTAKE_HOLD_POWER = 0.07;
+  static final double INTAKE_HOLD_POWER = 0.07;
 
   /**
    * Time to extend or retract arm in auto
@@ -219,10 +216,6 @@ public class Robot extends TimedRobot {
     SmartDashboard.putNumber("Gyro Initial Angle", gyro_init_angle);
   }
 
- 
- 
-  
-
   /**
    * Set the arm output power. Positive is out, negative is in.
    * 
@@ -240,7 +233,6 @@ public class Robot extends TimedRobot {
     }else{
       arm.set(percent);
     }
-    
     
     SmartDashboard.putNumber("arm power (%)", percent);
     SmartDashboard.putNumber("arm motor current (amps)", arm.getOutputCurrent());
@@ -277,6 +269,7 @@ public class Robot extends TimedRobot {
 
   double autonomousStartTime;
   double autonomousIntakePower;
+  static int autoStage = 0;
 
   static double gyro_init_angle = 0.0;
   public void levelRobot() {
@@ -309,11 +302,7 @@ public class Robot extends TimedRobot {
     autonomousStartTime = Timer.getFPGATimestamp();
   }
 
-  static final int INTAKE_CURRENT_LIMIT_A = 30;
-  static final int INTAKE_HOLD_CURRENT_LIMIT_A = 5;
-  static final double INTAKE_OUTPUT_POWER = 1.0;
-  static final double INTAKE_HOLD_POWER = 0.07;
-  static int autoStage = 0;
+
 
   @Override
   public void autonomousPeriodic() { // If it is middle auton
@@ -355,7 +344,7 @@ public class Robot extends TimedRobot {
           // use the intake
         } else if (motorEncoder.getPosition()<AUTO_FORWARD_DISTANCE) {
           armEncoder.setPosition(0);
-          setArmMotor(0.0);
+          setArmMotor(-ARM_OUTPUT_POWER/2);
           setIntakeMotor(-INTAKE_OUTPUT_POWER, INTAKE_CURRENT_LIMIT_A);
           drive.curvatureDrive(-AUTO_DRIVE_SPEED / 4, 0.0,false);
         } else {
@@ -367,7 +356,7 @@ public class Robot extends TimedRobot {
 
     case 1: // Throwing  piece and moving back to start position
         if (timeElapsed <  AUTO_THROW_TIME_S) {
-          setArmMotor(0.0);
+          setArmMotor(-ARM_OUTPUT_POWER/2);
           setIntakeMotor(INTAKE_OUTPUT_POWER / 2, INTAKE_CURRENT_LIMIT_A);
           drive.curvatureDrive(0.0, 0.0,false);
         } else if (motorEncoder.getPosition() > 0) {
@@ -385,7 +374,7 @@ public class Robot extends TimedRobot {
         if (armEncoder.getPosition()<ARM_END_POS) {
            setArmMotor(ARM_OUTPUT_POWER);
            setIntakeMotor(0.0, INTAKE_CURRENT_LIMIT_A);
-           drive.curvatureDrive(0, 0, false);
+           drive.curvatureDrive(AUTO_DRIVE_SPEED/2, 0, false);
           // drive backward
         } else if (motorEncoder.getPosition() > autoBackupPosition) { 
           setArmMotor(0.0);
@@ -433,25 +422,32 @@ public class Robot extends TimedRobot {
   @Override
   public void teleopPeriodic() {
     SmartDashboard.putNumber("drive position",motorEncoder.getPosition());
+
+    // Arm control
     if (armEncoder.getPosition() < 0) {
       armEncoder.setPosition(0);
     }
     double currTime=Timer.getFPGATimestamp();
-    if(currTime-DROP_TIME_X<3 && currTime-DROP_TIME_X>1){
+    if(currTime-DROP_TIME_X<3 && currTime-DROP_TIME_X>1) {
       setArmMotor(ARM_OUTPUT_POWER);
     } else if (driverJoystick.getRightTriggerAxis() != 0) {
       setArmMotor(ARM_OUTPUT_POWER);
-    }
-    else if(armEncoder.getPosition() < ARM_MIDDLE_POS/2 &&
+    } else if(operatorJoystick.getCrossButton()) {
+      if(armEncoder.getPosition()>ARM_MIDDLE_POS+1){
+        setArmMotor(-ARM_OUTPUT_POWER);
+      } else if(armEncoder.getPosition()<ARM_MIDDLE_POS-1){
+        setArmMotor(ARM_OUTPUT_POWER);
+      }
+    } else if(armEncoder.getPosition() < ARM_MIDDLE_POS/2 &&
          (operatorJoystick.getCircleButton() || operatorJoystick.getTriangleButton())){
-    setArmMotor(-ARM_OUTPUT_POWER);
+      setArmMotor(-ARM_OUTPUT_POWER);
     } else if (operatorJoystick.getLeftY() == 0) {
       setArmMotor(-.05);
-    } 
-    else {
+    } else {
       setArmMotor(operatorJoystick.getLeftY() * ARM_OUTPUT_POWER);
     }
 
+    // Intake control
     if (operatorJoystick.getCircleButtonPressed()) {
       setArmMotor(-ARM_OUTPUT_POWER);
       // cube in
@@ -460,8 +456,6 @@ public class Robot extends TimedRobot {
       lastGamePiece = CUBE;
       System.out.println("cross");
     } else if (operatorJoystick.getCircleButtonReleased()) {
-
-
       intakePower = 0;
       intakeAmps = 0;
     } else if (operatorJoystick.getTriangleButtonPressed()) {
@@ -472,7 +466,6 @@ public class Robot extends TimedRobot {
       lastGamePiece = CONE;
       System.out.println("triangle");
     } else if (operatorJoystick.getTriangleButtonReleased()) {
-
       intakePower = -INTAKE_HOLD_POWER;
       intakeAmps = INTAKE_HOLD_CURRENT_LIMIT_A;
     } else if (operatorJoystick.getSquareButtonPressed()) {
@@ -484,34 +477,21 @@ public class Robot extends TimedRobot {
         intakeAmps = INTAKE_CURRENT_LIMIT_A;
       }
       System.out.println("circle");
-  
     } else if (operatorJoystick.getSquareButtonReleased()) {
       DROP_TIME_X = Timer.getFPGATimestamp();
       intakeAmps = 0;
       intakePower = 0;
-    }else if(operatorJoystick.getCrossButton()){
-      if(armEncoder.getPosition()>ARM_MIDDLE_POS+1){
-        setArmMotor(-ARM_OUTPUT_POWER);
-      }else if(armEncoder.getPosition()<ARM_MIDDLE_POS-1){
-        setArmMotor(ARM_OUTPUT_POWER);
-      }
-
-      }
-      
-    
-    
-
-    setIntakeMotor(intakePower, intakeAmps);
-    if(DROP_TIME_X!=0 && Timer.getFPGATimestamp()-DROP_TIME_X<1){
-      drive.curvatureDrive(AUTO_DRIVE_SPEED / 2, 0,false);
     }
+      
+    setIntakeMotor(intakePower, intakeAmps);
 
-    
-    else if (driverJoystick.getBButton()) {
-      SmartDashboard.putNumber("Gyro Angle", gyro.getYComplementaryAngle());
-      double speed = npid.calculate(gyro.getYComplementaryAngle(), gyro_init_angle);
-      drive.curvatureDrive(speed, 0, true);
-      SmartDashboard.putNumber("Speed", speed);
+
+    // Drive control
+    if(DROP_TIME_X!=0 && Timer.getFPGATimestamp()-DROP_TIME_X<1){
+      drive.setMaxOutput(0.5);
+      drive.curvatureDrive(AUTO_DRIVE_SPEED / 2, 0,false);
+    } else if (driverJoystick.getBButton()) {
+      levelRobot();
     } else {
       if (driverJoystick.getLeftTriggerAxis() != 0) {
         drive.setMaxOutput(.25);
@@ -519,22 +499,15 @@ public class Robot extends TimedRobot {
         drive.setMaxOutput(.35);
       } else if (armEncoder.getPosition() < ARM_END_POS -5) {
         drive.setMaxOutput(.25);
-      }
-      else if (driverJoystick.getRightTriggerAxis() != 0) {
+      } else if (driverJoystick.getRightTriggerAxis() != 0) {
         drive.setMaxOutput(1);
       } else {
         drive.setMaxOutput(0.5);
       }
       var xSpeed = m_speedLimiter.calculate(-driverJoystick.getLeftY());
       final var rot = m_rotLimiter.calculate(-driverJoystick.getRightX());
-      if (rot != 0 && xSpeed == 0) {
-        xSpeed = 0.01;
-      }
 
       drive.curvatureDrive(xSpeed, rot, driverJoystick.getLeftBumper());
-      
-      
     }
-   
   }
 }
