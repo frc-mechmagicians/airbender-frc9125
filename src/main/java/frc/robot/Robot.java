@@ -119,6 +119,7 @@ public class Robot extends TimedRobot {
    * Time to extend or retract arm in auto
    */
   static final double ARM_EXTEND_TIME_S = 1.5;
+
   static double DROP_TIME_X=0;
   /**
    * Time to throw game piece in auto
@@ -128,13 +129,12 @@ public class Robot extends TimedRobot {
   static final double ARM_END_POS = 30;
 
   /**
-   * Time to drive back in auto
-   */
-  static double AUTO_DRIVE_TIME = 3.0;
-  /**
    * Speed to drive backwards in auto
    */
   static final double AUTO_DRIVE_SPEED = -0.25;
+  static final double AUTO_FORWARD_DISTANCE = 5;
+  static double autoBackupPosition = -30.0;
+
   /**
    * This method is run once when the robot is first started up.
    */
@@ -251,6 +251,12 @@ public class Robot extends TimedRobot {
 
     autonomousIntakePower = INTAKE_OUTPUT_POWER;
 
+    if (m_autoSelected == kMiddleAuto) {
+      autoBackupPosition = -20;
+    } else {
+      autoBackupPosition = -60;
+    }
+
     autonomousStartTime = Timer.getFPGATimestamp();
   }
 
@@ -258,35 +264,12 @@ public class Robot extends TimedRobot {
   static final int INTAKE_HOLD_CURRENT_LIMIT_A = 5;
   static final double INTAKE_OUTPUT_POWER = 1.0;
   static final double INTAKE_HOLD_POWER = 0.07;
-
-  static double AUTO_BACK_TIME = 0.0;
-  static double AUTO_WAIT_TIME = 0.0;
-  static double SCORE_TIME = 1;
-  static boolean middle = false;
+  static int autoStage = 0;
 
   @Override
   public void autonomousPeriodic() { // If it is middle auton
     SmartDashboard.putNumber("drive position",motorEncoder.getPosition());
-    if (m_autoSelected == kMiddleAuto) {
-      AUTO_DRIVE_TIME = 3.0;
-      AUTO_BACK_TIME = 2.0;
-      AUTO_WAIT_TIME = 1.0;
-      middle = true;
-    }
-    if (m_autoSelected == kLeftAuto) { // Left
-      AUTO_DRIVE_TIME = 3.0;
-      AUTO_BACK_TIME = 0.0;
-      AUTO_WAIT_TIME = 0.0;
-    }
-    if (m_autoSelected == kRightAuto) { // Right
-      AUTO_DRIVE_TIME = 3.0;
-      AUTO_BACK_TIME = 0.0;
-      AUTO_WAIT_TIME = 0.0;
-    }
-
-    System.out.println(AUTO_DRIVE_TIME);
-    System.out.println(AUTO_WAIT_TIME);
-    System.out.println(AUTO_BACK_TIME);
+   
 
     double timeElapsed = Timer.getFPGATimestamp() - autonomousStartTime;
     // move forward
@@ -308,62 +291,79 @@ public class Robot extends TimedRobot {
      */
     // extend arm out for two seconds
     System.out.println(timeElapsed);
-    if (timeElapsed < ARM_EXTEND_TIME_S) {
-      System.out.println(true);
-      setArmMotor(-ARM_OUTPUT_POWER);
-      setIntakeMotor(-INTAKE_OUTPUT_POWER, INTAKE_CURRENT_LIMIT_A);
-      drive.curvatureDrive(0.0, 0.0, false);
-      // stop moving arm
-      // if time is less that time it takes for arm to extend + time it takes to throw
-      // piece
-      // use the intake
-    } else if (timeElapsed < ARM_EXTEND_TIME_S + SCORE_TIME) {
-      armEncoder.setPosition(0);
 
-      setArmMotor(0.0);
-      setIntakeMotor(-INTAKE_OUTPUT_POWER, INTAKE_CURRENT_LIMIT_A);
-      if(Math.abs(motorEncoder.getPosition())<10){
-        drive.curvatureDrive(-AUTO_DRIVE_SPEED / 4, 0.0,false);
-      }
-      
-    } else if (timeElapsed < ARM_EXTEND_TIME_S + SCORE_TIME + AUTO_THROW_TIME_S) {
-      setArmMotor(0.0);
-      setIntakeMotor(INTAKE_OUTPUT_POWER / 2, INTAKE_CURRENT_LIMIT_A);
-      drive.curvatureDrive(0.0, 0.0,false);
-      // bring arm down
-    } else if (timeElapsed < ARM_EXTEND_TIME_S + SCORE_TIME + SCORE_TIME + AUTO_THROW_TIME_S) {
-      setArmMotor(0.0);
-      setIntakeMotor(0, 0);
-      drive.curvatureDrive(AUTO_DRIVE_SPEED / 2, 0.0,false);
-    } else if (timeElapsed < ARM_EXTEND_TIME_S + SCORE_TIME + SCORE_TIME + AUTO_THROW_TIME_S + ARM_EXTEND_TIME_S) {
-      
-      setArmMotor(ARM_OUTPUT_POWER);
-        
-      
-       // bring down arm
-      setIntakeMotor(0.0, INTAKE_CURRENT_LIMIT_A);
-      drive.curvatureDrive(0, 0, false);
-      // drive backward
-    } else if (timeElapsed < ARM_EXTEND_TIME_S + SCORE_TIME + SCORE_TIME + AUTO_THROW_TIME_S + ARM_EXTEND_TIME_S
-        + AUTO_DRIVE_TIME) {
-      setArmMotor(0.0);
-      setIntakeMotor(0.0, INTAKE_CURRENT_LIMIT_A);
-      drive.curvatureDrive(AUTO_DRIVE_SPEED, 0.0,false);
-    } else {
-      if (!middle) {
-        setArmMotor(0.0);
-        setIntakeMotor(0.0, INTAKE_CURRENT_LIMIT_A);
-        drive.curvatureDrive(0.0, 0.0,false);
-      } else {
-        SmartDashboard.putNumber("Gyro Angle", gyro.getYComplementaryAngle());
-        double delta = gyro_init_angle - gyro.getYComplementaryAngle();
-
-        if (Math.abs(delta) < 2) {
-          drive.curvatureDrive(0, 0.0,false);
+    
+    switch (autoStage) {
+      case 0:
+        if (timeElapsed < ARM_EXTEND_TIME_S) {
+          System.out.println(true);
+          setArmMotor(-ARM_OUTPUT_POWER);
+          setIntakeMotor(-INTAKE_OUTPUT_POWER, INTAKE_CURRENT_LIMIT_A);
+          drive.curvatureDrive(0.0, 0.0, false);
+          // stop moving arm
+          // if time is less that time it takes for arm to extend + time it takes to throw
+          // piece
+          // use the intake
+        } else if (motorEncoder.getPosition()<AUTO_FORWARD_DISTANCE) {
+          armEncoder.setPosition(0);
+          setArmMotor(0.0);
+          setIntakeMotor(-INTAKE_OUTPUT_POWER, INTAKE_CURRENT_LIMIT_A);
+          drive.curvatureDrive(-AUTO_DRIVE_SPEED / 4, 0.0,false);
         } else {
-          drive.curvatureDrive((delta * 0.05 / 15), 0.0,false);
+          autoStage++;
+          autonomousStartTime = Timer.getFPGATimestamp();
+          timeElapsed = 0;
         }
-      }
+        break;
+
+    case 1: // Throwing  piece and moving back to start position
+        if (timeElapsed <  AUTO_THROW_TIME_S) {
+          setArmMotor(0.0);
+          setIntakeMotor(INTAKE_OUTPUT_POWER / 2, INTAKE_CURRENT_LIMIT_A);
+          drive.curvatureDrive(0.0, 0.0,false);
+        } else if (motorEncoder.getPosition() > 0) {
+          setArmMotor(0.0);
+          setIntakeMotor(0, 0);
+          drive.curvatureDrive(AUTO_DRIVE_SPEED / 4, 0.0,false);
+        } else {
+          autoStage++;
+          autonomousStartTime = Timer.getFPGATimestamp();
+          timeElapsed = 0;
+        }
+        break;
+        
+    case 2: // Retracting arm and move out of community
+        if (armEncoder.getPosition()<ARM_END_POS) {
+           setArmMotor(ARM_OUTPUT_POWER);
+           setIntakeMotor(0.0, INTAKE_CURRENT_LIMIT_A);
+           drive.curvatureDrive(0, 0, false);
+          // drive backward
+        } else if (motorEncoder.getPosition() > autoBackupPosition) { 
+          setArmMotor(0.0);
+          setIntakeMotor(0.0, INTAKE_CURRENT_LIMIT_A);
+          drive.curvatureDrive(AUTO_DRIVE_SPEED/2, 0.0,false);
+        } else {
+          autoStage++;
+          autonomousStartTime = Timer.getFPGATimestamp();
+          timeElapsed = 0;
+        }
+        break;
+    case 3: // charge station
+        if (m_autoSelected != kMiddleAuto) {
+          setArmMotor(0.0);
+          setIntakeMotor(0.0, INTAKE_CURRENT_LIMIT_A);
+          drive.curvatureDrive(0.0, 0.0,false);
+        } else {
+          SmartDashboard.putNumber("Gyro Angle", gyro.getYComplementaryAngle());
+          double delta = gyro_init_angle - gyro.getYComplementaryAngle();
+
+          if (Math.abs(delta) < 2) {
+            drive.curvatureDrive(0, 0.0,false);
+          } else {
+            drive.curvatureDrive((delta * 0.05 / 15), 0.0,false);
+          }
+        }
+        break;
     }
   }
 
