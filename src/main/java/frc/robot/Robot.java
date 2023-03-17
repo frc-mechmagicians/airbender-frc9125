@@ -35,7 +35,7 @@ public class Robot extends TimedRobot {
   
 
   // https://en.wikipedia.org/wiki/Ziegler%E2%80%93Nichols_method
-  static final double GYRO_CONTROLLED_MAX_OUTPUT = 0.30; // tune it (.25 to .5)
+  static final double GYRO_CONTROLLED_MAX_OUTPUT = 0.09; // tune it (.25 to .5)
   static final double GYRO_TU = 1.0;  // Oscilatoin period - Tune it (0.5 to 2)
   static final double GYRO_KU = 1.0/15.0;  // ultimate gain at max angle 15
   static final double GYRO_TOLERANCE = 2.0; // Tolerance angle 
@@ -46,14 +46,14 @@ public class Robot extends TimedRobot {
   // static final double GYRO_KD = 0;
 
   // PD
-  //static final double GYRO_KP = 0.8*GYRO_KU;
-  //static final double GYRO_KI = 0;
-  //static final double GYRO_KD = 0.10*GYRO_KU*GYRO_TU;
+  static final double GYRO_KP = 0.8*GYRO_KU;
+  static final double GYRO_KI = 0;
+  static final double GYRO_KD = 0.14*GYRO_KU*GYRO_TU;
 
   // Classis PID
-  static final double GYRO_KP = 0.6*GYRO_KU;
-  static final double GYRO_KI = 1.2*GYRO_KU/GYRO_TU;
-  static final double GYRO_KD = 0.075*GYRO_KU*GYRO_TU;
+  //static final double GYRO_KP = 0.6*GYRO_KU;
+  //static final double GYRO_KI = 1.2*GYRO_KU/GYRO_TU;
+  //static final double GYRO_KD = 0.075*GYRO_KU*GYRO_TU;
   
   // Passen Integral Rule
   //static final double GYRO_KP = 0.7*GYRO_KU;
@@ -151,7 +151,7 @@ public class Robot extends TimedRobot {
    * Percent output for holding
    */
   static final double INTAKE_HOLD_POWER = 0.07;
-
+  static int autoStage = 0;
   /**
    * Time to extend or retract arm in auto
    */
@@ -178,6 +178,7 @@ public class Robot extends TimedRobot {
 
   @Override
   public void robotInit() {
+    autoStage=0;
     armEncoder.setPosition(0);
     m_chooser.setDefaultOption("Left", kLeftAuto);
     m_chooser.addOption("Middle", kMiddleAuto);
@@ -269,24 +270,28 @@ public class Robot extends TimedRobot {
 
   double autonomousStartTime;
   double autonomousIntakePower;
-  static int autoStage = 0;
+  
 
   static double gyro_init_angle = 0.0;
   public void levelRobot() {
     double speed = npid.calculate(gyro.getYComplementaryAngle(), gyro_init_angle);
     drive.setMaxOutput(GYRO_CONTROLLED_MAX_OUTPUT);
+    setArmMotor(ARM_OUTPUT_POWER/4);
     drive.curvatureDrive(speed, 0, true);
     SmartDashboard.putNumber("Gyro controllred Speed", speed);
   }
 
+  double robotPosition = 0;
+  int robotStallInterval = 0;
   @Override
-  public void autonomousInit() {
+  public void autonomousInit() { 
+    motorEncoder.setPosition(0);
     driveLeftSpark.setIdleMode(IdleMode.kBrake);
     driveLeftSpark2.setIdleMode(IdleMode.kBrake);
     driveRightSpark.setIdleMode(IdleMode.kBrake);
     driveRightSpark2.setIdleMode(IdleMode.kBrake);
-    motorEncoder.setPosition(0);
-
+    robotPosition = 0;
+    robotStallInterval = 0;
 
     m_autoSelected = m_chooser.getSelected();
     System.out.println("Auto selected: " + m_autoSelected);
@@ -300,13 +305,15 @@ public class Robot extends TimedRobot {
     }
 
     autonomousStartTime = Timer.getFPGATimestamp();
+    autoStage = 0;
   }
 
-
+  
 
   @Override
   public void autonomousPeriodic() { // If it is middle auton
     SmartDashboard.putNumber("drive position",motorEncoder.getPosition());
+    SmartDashboard.putNumber("curr angle",gyro.getYComplementaryAngle());
    
 
     double timeElapsed = Timer.getFPGATimestamp() - autonomousStartTime;
@@ -328,13 +335,11 @@ public class Robot extends TimedRobot {
      * 
      */
     // extend arm out for two seconds
-    System.out.println(timeElapsed);
-
-    
+    //System.out.println(timeElapsed);
+ 
     switch (autoStage) {
       case 0:
         if (timeElapsed < ARM_EXTEND_TIME_S) {
-          System.out.println(true);
           setArmMotor(-ARM_OUTPUT_POWER);
           setIntakeMotor(-INTAKE_OUTPUT_POWER, INTAKE_CURRENT_LIMIT_A);
           drive.curvatureDrive(0.0, 0.0, false);
@@ -342,7 +347,16 @@ public class Robot extends TimedRobot {
           // if time is less that time it takes for arm to extend + time it takes to throw
           // piece
           // use the intake
-        } else if (motorEncoder.getPosition()<AUTO_FORWARD_DISTANCE) {
+        } else if (robotStallInterval < 5) {
+          double curPos = motorEncoder.getPosition();
+          if (curPos - robotPosition < 0.00001) {
+            robotStallInterval++;
+            System.out.println("Motor Encoder, Robot Position "+ motorEncoder.getPosition()+" "+robotPosition);
+          } else {
+            robotStallInterval = 0;
+          }
+  
+          robotPosition=motorEncoder.getPosition();
           armEncoder.setPosition(0);
           setArmMotor(-ARM_OUTPUT_POWER/2);
           setIntakeMotor(-INTAKE_OUTPUT_POWER, INTAKE_CURRENT_LIMIT_A);
@@ -454,7 +468,6 @@ public class Robot extends TimedRobot {
       intakePower = INTAKE_OUTPUT_POWER / 2;
       intakeAmps = INTAKE_CURRENT_LIMIT_A;
       lastGamePiece = CUBE;
-      System.out.println("cross");
     } else if (operatorJoystick.getCircleButtonReleased()) {
       intakePower = 0;
       intakeAmps = 0;
@@ -464,7 +477,7 @@ public class Robot extends TimedRobot {
       intakePower = -INTAKE_OUTPUT_POWER;
       intakeAmps = INTAKE_CURRENT_LIMIT_A;
       lastGamePiece = CONE;
-      System.out.println("triangle");
+      
     } else if (operatorJoystick.getTriangleButtonReleased()) {
       intakePower = -INTAKE_HOLD_POWER;
       intakeAmps = INTAKE_HOLD_CURRENT_LIMIT_A;
@@ -476,7 +489,6 @@ public class Robot extends TimedRobot {
         intakePower = INTAKE_OUTPUT_POWER / 2;
         intakeAmps = INTAKE_CURRENT_LIMIT_A;
       }
-      System.out.println("circle");
     } else if (operatorJoystick.getSquareButtonReleased()) {
       DROP_TIME_X = Timer.getFPGATimestamp();
       intakeAmps = 0;
