@@ -35,7 +35,7 @@ public class Robot extends TimedRobot {
   
 
   // https://en.wikipedia.org/wiki/Ziegler%E2%80%93Nichols_method
-  static final double GYRO_CONTROLLED_MAX_OUTPUT = 0.09; // tune it (.25 to .5)
+  static final double GYRO_CONTROLLED_MAX_OUTPUT = 0.10; // tune it (.25 to .5)
   static final double GYRO_TU = 1.0;  // Oscilatoin period - Tune it (0.5 to 2)
   static final double GYRO_KU = 1.0/15.0;  // ultimate gain at max angle 15
   static final double GYRO_TOLERANCE = 2.0; // Tolerance angle 
@@ -83,7 +83,7 @@ public class Robot extends TimedRobot {
   CANSparkMax driveLeftSpark2 = new CANSparkMax(2, MotorType.kBrushless);
   CANSparkMax driveRightSpark2 = new CANSparkMax(4, MotorType.kBrushless);
   
-  MotorControllerGroup leftMotors = new MotorControllerGroup(driveLeftSpark, driveLeftSpark2);
+  MotorControllerGroup leftMotors = new MotorControllerGroup(driveLeftSpark,driveLeftSpark2);
   MotorControllerGroup rightMotors = new MotorControllerGroup(driveRightSpark, driveRightSpark2);
 
   ADIS16470_IMU gyro = new ADIS16470_IMU();
@@ -168,7 +168,7 @@ public class Robot extends TimedRobot {
   /**
    * Speed to drive backwards in auto
    */
-  static final double AUTO_DRIVE_SPEED = -0.25;
+  static final double AUTO_DRIVE_SPEED = -0.35;
   static final double AUTO_FORWARD_DISTANCE = 5;
   static double autoBackupPosition = -30.0;
 
@@ -388,12 +388,12 @@ public class Robot extends TimedRobot {
         if (armEncoder.getPosition()<ARM_END_POS) {
            setArmMotor(ARM_OUTPUT_POWER);
            setIntakeMotor(0.0, INTAKE_CURRENT_LIMIT_A);
-           drive.curvatureDrive(AUTO_DRIVE_SPEED/2, 0, false);
+           drive.curvatureDrive(0, 0, false);
           // drive backward
         } else if (motorEncoder.getPosition() > autoBackupPosition) { 
           setArmMotor(0.0);
           setIntakeMotor(0.0, INTAKE_CURRENT_LIMIT_A);
-          drive.curvatureDrive(AUTO_DRIVE_SPEED/2, 0.0,false);
+          drive.curvatureDrive(0,0,false);
         } else {
           autoStage++;
           autonomousStartTime = Timer.getFPGATimestamp();
@@ -421,7 +421,7 @@ public class Robot extends TimedRobot {
   int lastGamePiece;
   double intakePower = 0;
   int intakeAmps = 0;
-
+  double OpenLoopRamp=0.25;
   @Override
   public void teleopInit() {
     motorEncoder.setPosition(0);
@@ -429,6 +429,10 @@ public class Robot extends TimedRobot {
     driveLeftSpark2.setIdleMode(IdleMode.kCoast);
     driveRightSpark.setIdleMode(IdleMode.kCoast);
     driveRightSpark2.setIdleMode(IdleMode.kCoast);
+    driveLeftSpark.setOpenLoopRampRate(OpenLoopRamp);
+   driveLeftSpark2.setOpenLoopRampRate(OpenLoopRamp);
+    driveRightSpark.setOpenLoopRampRate(-OpenLoopRamp);
+    driveRightSpark2.setOpenLoopRampRate(-OpenLoopRamp);
 
     lastGamePiece = NOTHING;
   }
@@ -448,9 +452,9 @@ public class Robot extends TimedRobot {
       setArmMotor(ARM_OUTPUT_POWER);
     } else if(operatorJoystick.getCrossButton()) {
       if(armEncoder.getPosition()>ARM_MIDDLE_POS+1){
-        setArmMotor(-ARM_OUTPUT_POWER);
+        setArmMotor(-ARM_OUTPUT_POWER/2);
       } else if(armEncoder.getPosition()<ARM_MIDDLE_POS-1){
-        setArmMotor(ARM_OUTPUT_POWER);
+        setArmMotor(ARM_OUTPUT_POWER/2);
       }
     } else if(armEncoder.getPosition() < ARM_MIDDLE_POS/2 &&
          (operatorJoystick.getCircleButton() || operatorJoystick.getTriangleButton())){
@@ -494,10 +498,22 @@ public class Robot extends TimedRobot {
       intakeAmps = 0;
       intakePower = 0;
     }
+
       
     setIntakeMotor(intakePower, intakeAmps);
 
-
+    if(driverJoystick.getBButton()){
+      driveLeftSpark.setIdleMode(IdleMode.kBrake);
+   driveLeftSpark2.setIdleMode(IdleMode.kBrake);
+      driveRightSpark.setIdleMode(IdleMode.kBrake);
+      driveRightSpark2.setIdleMode(IdleMode.kBrake);
+    }
+    if(driverJoystick.getBButtonReleased()){
+     driveLeftSpark.setIdleMode(IdleMode.kCoast);
+      driveLeftSpark2.setIdleMode(IdleMode.kCoast);
+      driveRightSpark.setIdleMode(IdleMode.kCoast);
+      driveRightSpark2.setIdleMode(IdleMode.kCoast);
+    }
     // Drive control
     if(DROP_TIME_X!=0 && Timer.getFPGATimestamp()-DROP_TIME_X<1){
       drive.setMaxOutput(0.5);
@@ -508,10 +524,8 @@ public class Robot extends TimedRobot {
       if (driverJoystick.getLeftTriggerAxis() != 0) {
         drive.setMaxOutput(.25);
       } else if (driverJoystick.getLeftBumper()) {
-        drive.setMaxOutput(.35);
-      } else if (armEncoder.getPosition() < ARM_END_POS -5) {
-        drive.setMaxOutput(.25);
-      } else if (driverJoystick.getRightTriggerAxis() != 0) {
+        drive.setMaxOutput( .45);
+      }else if (driverJoystick.getRightTriggerAxis() != 0) {
         drive.setMaxOutput(1);
       } else {
         drive.setMaxOutput(0.5);
