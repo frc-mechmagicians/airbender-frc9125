@@ -14,11 +14,11 @@ import edu.wpi.first.wpilibj.TimedRobot;
 import edu.wpi.first.wpilibj.Timer;
 import edu.wpi.first.wpilibj.XboxController;
 import edu.wpi.first.wpilibj.drive.DifferentialDrive;
+import edu.wpi.first.wpilibj.drive.DifferentialDriveOdometry;
 import edu.wpi.first.wpilibj.motorcontrol.MotorControllerGroup;
 import edu.wpi.first.wpilibj.smartdashboard.SendableChooser;
 import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
 import edu.wpi.first.cameraserver.CameraServer;
-
 
 
 public class Robot extends TimedRobot {
@@ -107,6 +107,18 @@ public class Robot extends TimedRobot {
   
   public RelativeEncoder armEncoder = arm.getEncoder();
   public RelativeEncoder motorEncoder = driveLeftSpark.getEncoder();
+  public RelativeEncoder motorEncoder2 = driveRightSpark.getEncoder();
+  
+  DifferentialDriveOdometry odom = new DifferentialDriveOdometry(
+    fromDegrees(gyro.getXComplementaryAngle()),
+    motorEncoder.getPosition(),
+    motorEncoder2.getPosition());
+
+  Pose2D updated_pose = odom.update(
+    fromDegrees(gyro.getXComplementaryAngle()),
+    motorEncoder.getPosition(),
+    motorEncoder2.getPosition());
+
   /**
    * The starter code uses the most generic joystick class.
    * 
@@ -238,6 +250,8 @@ public class Robot extends TimedRobot {
     SmartDashboard.putNumber("arm power (%)", percent);
     SmartDashboard.putNumber("arm motor current (amps)", arm.getOutputCurrent());
     SmartDashboard.putNumber("arm motor temperature (C)", arm.getMotorTemperature());
+
+    SmartDashboard.putNumber("Robot X Position",)
   }
 
   /**
@@ -315,6 +329,11 @@ public class Robot extends TimedRobot {
     SmartDashboard.putNumber("drive position",motorEncoder.getPosition());
     SmartDashboard.putNumber("curr angle",gyro.getYComplementaryAngle());
    
+    updated_pose = odom.update(
+    fromDegrees(gyro.getXComplementaryAngle()),
+    motorEncoder.getPosition(),
+    motorEncoder2.getPosition());
+
 
     double timeElapsed = Timer.getFPGATimestamp() - autonomousStartTime;
     // move forward
@@ -439,6 +458,13 @@ public class Robot extends TimedRobot {
 
   @Override
   public void teleopPeriodic() {
+
+    updated_pose = odom.update(
+    fromDegrees(gyro.getXComplementaryAngle()),
+    motorEncoder.getPosition(),
+    motorEncoder2.getPosition());
+
+
     SmartDashboard.putNumber("drive position",motorEncoder.getPosition());
 
     // Arm control
@@ -525,7 +551,7 @@ public class Robot extends TimedRobot {
         drive.setMaxOutput(.25);
       } else if (driverJoystick.getLeftBumper()) {
         drive.setMaxOutput( .45);
-      }else if (driverJoystick.getRightTriggerAxis() != 0) {
+      }else if (driverJoystick.getRightTriggerAxis() != 0) { 
         drive.setMaxOutput(1);
       } else {
         drive.setMaxOutput(0.5);
