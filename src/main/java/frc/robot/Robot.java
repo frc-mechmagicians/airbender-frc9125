@@ -69,8 +69,12 @@ public class Robot extends TimedRobot {
   //static final double GYRO_KP = 0.2*GYRO_KU;
   //static final double GYRO_KI = 0.4*GYRO_KU/GYRO_TU;
   //static final double GYRO_KD = 0.066*GYRO_KU*GYRO_TU
-
+  //arm constants
+  static final double ARM_KP = 0.7/20;
+  static final double ARM_KI = 0;
+  static final double ARM_KD = 0;
   private final PIDController npid = new PIDController(GYRO_KP, GYRO_KI, GYRO_KD);
+  private final PIDController armPID = new PIDController(ARM_KP, ARM_KI, ARM_KD);
   /*
    * Drive motor controller instances.
    * 
@@ -152,6 +156,7 @@ public class Robot extends TimedRobot {
    */
   static final double INTAKE_HOLD_POWER = 0.07;
   static int autoStage = 0;
+
   /**
    * Time to extend or retract arm in auto
    */
@@ -162,7 +167,9 @@ public class Robot extends TimedRobot {
    * Time to throw game piece in auto
    */
   static final double AUTO_THROW_TIME_S = 0.25;
-  static final double ARM_MIDDLE_POS = 18;
+  static final double ARM_MIDDLE_POS_CUBE = 18;
+  static final double ARM_MIDDLE_POS_CONE = 20;
+  static final double arm_Tolerance = 1;
   static final double ARM_END_POS = 30;
 
   /**
@@ -213,6 +220,7 @@ public class Robot extends TimedRobot {
 
 
     npid.setTolerance(GYRO_TOLERANCE);
+    armPID.setTolerance(arm_Tolerance);
     gyro_init_angle = gyro.getYComplementaryAngle();
     SmartDashboard.putNumber("Gyro Initial Angle", gyro_init_angle);
   }
@@ -421,7 +429,8 @@ public class Robot extends TimedRobot {
   int lastGamePiece;
   double intakePower = 0;
   int intakeAmps = 0;
-  double OpenLoopRamp=0.25;
+  double OpenLoopRamp=0.4;
+  boolean Coast = true;
   @Override
   public void teleopInit() {
     motorEncoder.setPosition(0);
@@ -440,23 +449,34 @@ public class Robot extends TimedRobot {
   @Override
   public void teleopPeriodic() {
     SmartDashboard.putNumber("drive position",motorEncoder.getPosition());
-
+    SmartDashboard.putBoolean("Coast", Coast);
     // Arm control
     if (armEncoder.getPosition() < 0) {
       armEncoder.setPosition(0);
     }
+
+    //ARM Middle PID
+    /* 
+    if(operatorJoystick.getCrossButton()){
+      setArmMotor(armPID.calculate(armEncoder.getPosition(), ARM_MIDDLE_POS_CUBE));
+    }
+    if(operatorJoystick.getL1Button()){
+      setArmMotor(armPID.calculate(armEncoder.getPosition(), ARM_MIDDLE_POS_CONE));
+    }*/
+    
     double currTime=Timer.getFPGATimestamp();
     if(currTime-DROP_TIME_X<3 && currTime-DROP_TIME_X>1) {
       setArmMotor(ARM_OUTPUT_POWER);
     } else if (driverJoystick.getRightTriggerAxis() != 0) {
       setArmMotor(ARM_OUTPUT_POWER);
     } else if(operatorJoystick.getCrossButton()) {
-      if(armEncoder.getPosition()>ARM_MIDDLE_POS+1){
+      setArmMotor(armPID.calculate(armEncoder.getPosition(), ARM_MIDDLE_POS_CUBE));
+     /* if(armEncoder.getPosition()>ARM_MIDDLE_POS_CUBE+1){
         setArmMotor(-ARM_OUTPUT_POWER/2);
-      } else if(armEncoder.getPosition()<ARM_MIDDLE_POS-1){
+      } else if(armEncoder.getPosition()<ARM_MIDDLE_POS_CUBE-1){
         setArmMotor(ARM_OUTPUT_POWER/2);
-      }
-    } else if(armEncoder.getPosition() < ARM_MIDDLE_POS/2 &&
+      }*/
+    } else if(armEncoder.getPosition() < ARM_MIDDLE_POS_CUBE/2 &&
          (operatorJoystick.getCircleButton() || operatorJoystick.getTriangleButton())){
       setArmMotor(-ARM_OUTPUT_POWER);
     } else if (operatorJoystick.getLeftY() == 0) {
@@ -502,18 +522,23 @@ public class Robot extends TimedRobot {
       
     setIntakeMotor(intakePower, intakeAmps);
 
-    if(driverJoystick.getBButton()){
-      driveLeftSpark.setIdleMode(IdleMode.kBrake);
+    if(driverJoystick.getBButtonPressed()){
+      if(Coast==true){
+        driveLeftSpark.setIdleMode(IdleMode.kBrake);
    driveLeftSpark2.setIdleMode(IdleMode.kBrake);
       driveRightSpark.setIdleMode(IdleMode.kBrake);
       driveRightSpark2.setIdleMode(IdleMode.kBrake);
-    }
-    if(driverJoystick.getBButtonReleased()){
-     driveLeftSpark.setIdleMode(IdleMode.kCoast);
-      driveLeftSpark2.setIdleMode(IdleMode.kCoast);
+      Coast=false;
+
+      }else if(Coast==false){
+        driveLeftSpark.setIdleMode(IdleMode.kCoast);
+   driveLeftSpark2.setIdleMode(IdleMode.kCoast);
       driveRightSpark.setIdleMode(IdleMode.kCoast);
       driveRightSpark2.setIdleMode(IdleMode.kCoast);
+      Coast=true;
+      }
     }
+
     // Drive control
     if(DROP_TIME_X!=0 && Timer.getFPGATimestamp()-DROP_TIME_X<1){
       drive.setMaxOutput(0.5);
@@ -523,17 +548,17 @@ public class Robot extends TimedRobot {
     } else {
       if (driverJoystick.getLeftTriggerAxis() != 0) {
         drive.setMaxOutput(.25);
-      } else if (driverJoystick.getLeftBumper()) {
+      } else if (driverJoystick.getRightBumper()) { //Changed from left bumper to right bumper
         drive.setMaxOutput( .45);
       }else if (driverJoystick.getRightTriggerAxis() != 0) {
         drive.setMaxOutput(1);
       } else {
-        drive.setMaxOutput(0.5);
+        drive.setMaxOutput(0.7); //Increased fromm 0.5 to 0.7
       }
       var xSpeed = m_speedLimiter.calculate(-driverJoystick.getLeftY());
       final var rot = m_rotLimiter.calculate(-driverJoystick.getRightX());
 
-      drive.curvatureDrive(xSpeed, rot, driverJoystick.getLeftBumper());
+      drive.curvatureDrive(xSpeed, rot, driverJoystick.getRightBumper()); //changed from left bumper to right bumper
     }
   }
 }
