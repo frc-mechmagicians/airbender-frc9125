@@ -75,6 +75,9 @@ public class Robot extends TimedRobot {
   static final double ARM_KD = 0;
   private final PIDController npid = new PIDController(GYRO_KP, GYRO_KI, GYRO_KD);
   private final PIDController armPID = new PIDController(ARM_KP, ARM_KI, ARM_KD);
+
+  PIDController turn_controller = new PIDController(1.0/180, 0, 0.00);
+
   /*
    * Drive motor controller instances.
    * 
@@ -221,6 +224,7 @@ public class Robot extends TimedRobot {
 
     npid.setTolerance(GYRO_TOLERANCE);
     armPID.setTolerance(arm_Tolerance);
+    turn_controller.setTolerance(2);
     gyro_init_angle = gyro.getYComplementaryAngle();
     SmartDashboard.putNumber("Gyro Initial Angle", gyro_init_angle);
   }
@@ -293,6 +297,9 @@ public class Robot extends TimedRobot {
   int robotStallInterval = 0;
   @Override
   public void autonomousInit() { 
+
+    gyro.reset();
+
     motorEncoder.setPosition(0);
     driveLeftSpark.setIdleMode(IdleMode.kBrake);
     driveLeftSpark2.setIdleMode(IdleMode.kBrake);
@@ -431,6 +438,9 @@ public class Robot extends TimedRobot {
   int intakeAmps = 0;
   double OpenLoopRamp=0.4;
   boolean Coast = true;
+  boolean straight_mode = false;
+  double straight_angle = 0.0;
+
   @Override
   public void teleopInit() {
     motorEncoder.setPosition(0);
@@ -555,8 +565,44 @@ public class Robot extends TimedRobot {
       } else {
         drive.setMaxOutput(0.7); //Increased fromm 0.5 to 0.7
       }
+
+      if (driverJoystick.getYButton()){
+        if (!straight_mode) {
+          straight_angle = gyro.getAngle();
+          straight_mode = true;
+        }
+      } else {
+        straight_mode = false;
+      }
+
+
       var xSpeed = m_speedLimiter.calculate(-driverJoystick.getLeftY());
-      final var rot = m_rotLimiter.calculate(-driverJoystick.getRightX());
+      var rot = m_rotLimiter.calculate(-driverJoystick.getRightX());
+
+      if (driverJoystick.getPOV() != -1) {
+        double gyro_angle = gyro.getAngle();
+        double desired_angle = driverJoystick.getPOV();
+        while (desired_angle-gyro_angle > 180) {
+          desired_angle -= 360;
+        }
+        while (gyro_angle-desired_angle > 180) {
+          desired_angle += 360;
+        }
+        rot = turn_controller.calculate(gyro.getAngle(),desired_angle);
+      } 
+
+      if (straight_mode) {
+        while (straight_angle-gyro.getAngle() > 180) {
+          straight_angle -= 360;
+        }
+        while (gyro.getAngle()-straight_angle > 180) {
+          straight_angle += 360;
+        }
+        rot = turn_controller.calculate(gyro.getAngle(),straight_angle);
+      }
+
+      SmartDashboard.putNumber("Gyro Angle: ",gyro.getAngle());
+      SmartDashboard.putNumber("POV Data: ",driverJoystick.getPOV());
 
       drive.curvatureDrive(xSpeed, rot, driverJoystick.getRightBumper()); //changed from left bumper to right bumper
     }
