@@ -35,7 +35,7 @@ public class Robot extends TimedRobot {
   
 
   // https://en.wikipedia.org/wiki/Ziegler%E2%80%93Nichols_method
-  static final double GYRO_CONTROLLED_MAX_OUTPUT = 0.10; // tune it (.25 to .5)
+  static final double GYRO_CONTROLLED_MAX_OUTPUT = 0.12; // tune it (.25 to .5)
   static final double GYRO_TU = 1.0;  // Oscilatoin period - Tune it (0.5 to 2)
   static final double GYRO_KU = 1.0/15.0;  // ultimate gain at max angle 15
   static final double GYRO_TOLERANCE = 2.0; // Tolerance angle 
@@ -75,7 +75,7 @@ public class Robot extends TimedRobot {
   static final double ARM_KD = 0;
   private final PIDController npid = new PIDController(GYRO_KP, GYRO_KI, GYRO_KD);
   private final PIDController armPID = new PIDController(ARM_KP, ARM_KI, ARM_KD);
-  private final PIDController turn_controller = new PIDController(1.0/180, 0, 0.00);
+  private final PIDController turn_controller = new PIDController(1.0/180, 0.0/180, 0.0/180);
   /*
    * Drive motor controller instances.
    * 
@@ -272,6 +272,10 @@ public class Robot extends TimedRobot {
   public void robotPeriodic() {
     SmartDashboard.putNumber("Time (seconds)", Timer.getFPGATimestamp());
     SmartDashboard.putNumber("arm position",armEncoder.getPosition());
+    SmartDashboard.putNumber("Gyro Angle: ",gyro.getAngle());
+    SmartDashboard.putNumber("POV Data: ",driverJoystick.getPOV());
+    SmartDashboard.putNumber("drive position",motorEncoder.getPosition());
+    SmartDashboard.putNumber("curr angle",gyro.getYComplementaryAngle());
     
     if (armEncoder.getPosition() < 0) {
       armEncoder.setPosition(0);
@@ -312,7 +316,7 @@ public class Robot extends TimedRobot {
     autonomousIntakePower = INTAKE_OUTPUT_POWER;
 
     if (m_autoSelected == kMiddleAuto) {
-      autoBackupPosition = -20;
+      autoBackupPosition = 0;
     } else {
       autoBackupPosition = -60;
     }
@@ -321,12 +325,21 @@ public class Robot extends TimedRobot {
     autoStage = 0;
   }
 
+  public double rotateRobot(double desired_angle) {
+    double gyro_angle = gyro.getAngle();
+    while (desired_angle-gyro_angle > 180) {
+      desired_angle -= 360;
+    }
+    while (gyro_angle-desired_angle > 180) {
+      desired_angle += 360;
+    }
+    return turn_controller.calculate(gyro.getAngle(),desired_angle);
+  }
   
 
   @Override
   public void autonomousPeriodic() { // If it is middle auton
-    SmartDashboard.putNumber("drive position",motorEncoder.getPosition());
-    SmartDashboard.putNumber("curr angle",gyro.getYComplementaryAngle());
+    
    
 
     double timeElapsed = Timer.getFPGATimestamp() - autonomousStartTime;
@@ -406,22 +419,60 @@ public class Robot extends TimedRobot {
         } else if (motorEncoder.getPosition() > autoBackupPosition) { 
           setArmMotor(0.0);
           setIntakeMotor(0.0, INTAKE_CURRENT_LIMIT_A);
-          drive.curvatureDrive(0,0,false);
+          drive.curvatureDrive(AUTO_DRIVE_SPEED / 2,0,false);
         } else {
           autoStage++;
           autonomousStartTime = Timer.getFPGATimestamp();
           timeElapsed = 0;
+          robotStallInterval = 0;
+          robotPosition = 0;
         }
         break;
     case 3: // charge station
         if (m_autoSelected != kMiddleAuto) {
           setArmMotor(0.0);
           setIntakeMotor(0.0, INTAKE_CURRENT_LIMIT_A);
-          drive.curvatureDrive(0.0, 0.0,false);
+          drive.curvatureDrive(0, 0.0,false);
         } else {
-          levelRobot();
+
+          double rot = rotateRobot(180);
+          drive.setMaxOutput(0.4);
+          drive.curvatureDrive(0, rot, true);
+          if (robotStallInterval < 5) {
+            double curPosition = Math.abs(gyro.getAngle());
+            if (Math.abs(curPosition - robotPosition) < 0.1) {
+              robotStallInterval++;
+            } else {
+              robotStallInterval = 0;
+            }
+            robotPosition = Math.abs(gyro.getAngle());
+          } else {
+            motorEncoder.setPosition(0);
+            autoStage++;
+            autonomousStartTime = Timer.getFPGATimestamp();
+            timeElapsed = 0;   
+          } 
         }
         break;
+
+    case 4:
+        // Back up to charge station
+      drive.setMaxOutput(1.0);
+      if (Math.abs(gyro.getYComplementaryAngle()) < 10) { 
+        // double rot = rotateRobot(180);
+        setArmMotor(0.0);
+        setIntakeMotor(0.0, INTAKE_CURRENT_LIMIT_A);
+        drive.curvatureDrive(-AUTO_DRIVE_SPEED, 0, false);
+        break;
+      } else {
+        autoStage++;
+        autonomousStartTime = Timer.getFPGATimestamp();
+        timeElapsed = 0;  
+      }
+  
+    case 5:
+      levelRobot();
+      break;
     }
   }
 
@@ -603,9 +654,7 @@ public class Robot extends TimedRobot {
         rot = turn_controller.calculate(gyro.getAngle(),straight_angle);
       }
 
-      SmartDashboard.putNumber("Gyro Angle: ",gyro.getAngle());
-      SmartDashboard.putNumber("POV Data: ",driverJoystick.getPOV());
-
+      
       drive.curvatureDrive(xSpeed, rot, leftBumper);
     }
   }
